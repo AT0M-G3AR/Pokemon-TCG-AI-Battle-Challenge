@@ -1,0 +1,38 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Competition engine (not redistributable — download from Kaggle Data tab)
+tools/cg-lib/
+agent/cg/
+**/cg-lib/
+
+# Submission archives
+*.tar.gz
+
+# Game replays (can be large)
+result.html
+*.html
+
+# Observation dumps
+obs_dump.json
+
+# Environment
+.env
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
