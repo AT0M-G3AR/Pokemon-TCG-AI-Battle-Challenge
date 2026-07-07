@@ -1,97 +1,61 @@
-"""
-PTCG AI Battle Challenge — Agent Entry Point
-AT0M-G3AR | Gary & Team | 2026
-
-Matches the official sample_submission/main.py interface exactly.
-
-KEY FACTS from sample_submission:
-  - Uses cg.api.Observation and to_observation_class() — the official typed API
-  - obs.select == None → deck selection phase → return read_deck_csv()
-  - deck.csv has NO header row — 60 card IDs starting at line 0
-  - Kaggle simulation path: /kaggle_simulations/agent/ (note: not /kaggle/simulations/)
-  - obs.select.option, obs.select.maxCount, obs.select.minCount are the full API
-  - All returned indices must be: >= 0, < len(obs.select.option), no duplicates
-"""
-
 import os
 import random
-
 from cg.api import Observation, to_observation_class
 from policy import select_action
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# DECK LOADER
-# Reads deck.csv — 60 card IDs, one per line, NO header row.
-# Matches official sample_submission read_deck_csv() exactly.
-# ─────────────────────────────────────────────────────────────────────────────
-
 def read_deck_csv() -> list[int]:
-    """
-    Load the 60-card deck from deck.csv.
+    # Try every possible path Kaggle might use
+    candidates = [
+        "deck.csv",
+        "/kaggle_simulations/agent/deck.csv",
+        "/kaggle/simulations/agent/deck.csv",
+        os.path.join(os.path.dirname(__file__), "deck.csv"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "deck.csv"),
+    ]
 
-    Format (our deck.csv has a "deck" header on row 0):
-        deck        ← header row (skipped)
-        673         ← card ID row 1  (csv index 1)
-        673         ← card ID row 2
-        ...         ← 60 card IDs total on rows 1–60
+    csv_lines = None
+    for path in candidates:
+        try:
+            with open(path, "r") as f:
+                content = f.read().strip()
+                csv_lines = [line.strip() for line in content.split("\n") if line.strip()]
+                print(f"[deck] Loaded from: {path} ({len(csv_lines)} lines)")
+                break
+        except Exception:
+            continue
 
-    Paths checked in order:
-        1. ./deck.csv               (local dev)
-        2. /kaggle_simulations/agent/deck.csv  (Kaggle runtime)
-    """
-    file_path = "deck.csv"
-    if not os.path.exists(file_path):
-        file_path = "/kaggle_simulations/agent/deck.csv"
+    if csv_lines is None:
+        print("[deck] ERROR: deck.csv not found in any path")
+        return []
 
-    with open(file_path, "r") as file:
-        csv = file.read().split("\n")
-
-    # Row 0 is the "deck" header — card IDs start at index 1
+    # Parse card IDs — skip header row if present
     deck = []
-    for i in range(60):
-        deck.append(int(csv[i + 1]))
+    for line in csv_lines:
+        if line.lower() == "deck":
+            continue  # skip header
+        try:
+            deck.append(int(line))
+        except ValueError:
+            continue  # skip any blank or malformed lines
 
+    print(f"[deck] Parsed {len(deck)} card IDs")
     return deck
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# AGENT ENTRY POINT
-# Called every decision step by the cabt engine.
-# ─────────────────────────────────────────────────────────────────────────────
-
 def agent(obs_dict: dict) -> list[int]:
-    """
-    Main agent function — called by the cabt simulation engine each turn.
-
-    Args:
-        obs_dict: Raw observation dictionary from the engine.
-
-    Returns:
-        list[int]: Indices of chosen options from obs.select.option.
-                   Length must be between minCount and maxCount (inclusive).
-                   All values >= 0, < len(obs.select.option), no duplicates.
-    """
     try:
         obs: Observation = to_observation_class(obs_dict)
-
-        # Deck selection phase — obs.select is None at game start
         if obs.select is None:
-            return read_deck_csv()
-
-        # All other decisions — route through policy
+            deck = read_deck_csv()
+            print(f"[agent] Returning deck of {len(deck)} cards")
+            return deck
         return select_action(obs)
-
     except Exception as e:
-        print(f"[AGENT ERROR] {e} — using safe fallback")
+        print(f"[AGENT ERROR] {e}")
         return _safe_fallback(obs_dict)
 
 
 def _safe_fallback(obs_dict: dict) -> list[int]:
-    """
-    Absolute last resort using raw obs_dict (bypasses Observation class).
-    Should never be reached in normal play — exists only to prevent forfeits.
-    """
     select = obs_dict.get("select")
     if not select:
         return []
