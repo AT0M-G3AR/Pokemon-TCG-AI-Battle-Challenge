@@ -1,67 +1,52 @@
 import os
 import random
+
 from cg.api import Observation, to_observation_class
 from policy import select_action
 
 def read_deck_csv() -> list[int]:
-    # Try every possible path Kaggle might use
-    candidates = [
-        "deck.csv",
-        "/kaggle_simulations/agent/deck.csv",
-        "/kaggle/simulations/agent/deck.csv",
-        os.path.join(os.path.dirname(__file__), "deck.csv"),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "deck.csv"),
-    ]
-
-    csv_lines = None
-    for path in candidates:
-        try:
-            with open(path, "r") as f:
-                content = f.read().strip()
-                csv_lines = [line.strip() for line in content.split("\n") if line.strip()]
-                print(f"[deck] Loaded from: {path} ({len(csv_lines)} lines)")
-                break
-        except Exception:
-            continue
-
-    if csv_lines is None:
-        print("[deck] ERROR: deck.csv not found in any path")
-        return []
-
-    # Parse card IDs — skip header row if present
+    """Read deck.csv.
+    
+    Returns:
+        list[int]: A list of card IDs in the deck.
+    """
+    file_path = "deck.csv"
+    if not os.path.exists(file_path):
+        file_path = "/kaggle_simulations/agent/" + file_path
+    with open(file_path, "r") as file:
+        csv = file.read().split("\n")
     deck = []
-    for line in csv_lines:
-        if line.lower() == "deck":
-            continue  # skip header
-        try:
-            deck.append(int(line))
-        except ValueError:
-            continue  # skip any blank or malformed lines
-
-    print(f"[deck] Parsed {len(deck)} card IDs")
+    for i in range(60):
+        deck.append(int(csv[i]))
     return deck
 
-
 def agent(obs_dict: dict) -> list[int]:
+    """Implement Your Pokémon Trading Card Game Agent.
+
+    Each element in the returned list must be >= 0 and < len(obs.select.option).
+    The list length must be between obs.select.minCount and obs.select.maxCount (inclusive), with no duplicate elements.
+    
+    Returns:
+        list[int]: A list of option index.
+    """
     try:
         obs: Observation = to_observation_class(obs_dict)
-        if obs.select is None:
-            deck = read_deck_csv()
-            print(f"[agent] Returning deck of {len(deck)} cards")
-            return deck
+        if obs.select == None:
+            # In the initial selection, the obs.select is None, and it is necessary to return the deck.
+            # The deck is a list of 60 card IDs.
+            # The deck must comply with the Pokémon Trading Card Game rules.
+            return read_deck_csv()
+        
         return select_action(obs)
     except Exception as e:
-        print(f"[AGENT ERROR] {e}")
-        return _safe_fallback(obs_dict)
-
-
-def _safe_fallback(obs_dict: dict) -> list[int]:
-    select = obs_dict.get("select")
-    if not select:
-        return []
-    options = select.get("option", [])
-    if not options:
-        return []
-    max_count = select.get("maxCount", 1)
-    pick = min(max_count, len(options))
-    return random.sample(list(range(len(options))), pick)
+        print(f"[AGENT ERROR] {e} — using safe fallback")
+        # Safe fallback matching Kiyota's random.sample exactly
+        select = obs_dict.get("select")
+        if not select:
+            return []
+        options = select.get("option", [])
+        if not options:
+            return []
+        max_count = select.get("maxCount", 1)
+        pick = min(max_count, len(options))
+        return random.sample(list(range(len(options))), pick)
