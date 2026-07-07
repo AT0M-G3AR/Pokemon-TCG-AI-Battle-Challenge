@@ -30,10 +30,11 @@ def read_deck_csv() -> list[int]:
     """
     Load the 60-card deck from deck.csv.
 
-    Format (matches official sample — NO header):
-        1158        ← card ID line 0
-        721         ← card ID line 1
-        ...         ← 60 lines total
+    Format (our deck.csv has a "deck" header on row 0):
+        deck        ← header row (skipped)
+        673         ← card ID row 1  (csv index 1)
+        673         ← card ID row 2
+        ...         ← 60 card IDs total on rows 1–60
 
     Paths checked in order:
         1. ./deck.csv               (local dev)
@@ -46,10 +47,10 @@ def read_deck_csv() -> list[int]:
     with open(file_path, "r") as file:
         csv = file.read().split("\n")
 
-    # No header — card IDs start at index 0, read exactly 60
+    # Row 0 is the "deck" header — card IDs start at index 1
     deck = []
     for i in range(60):
-        deck.append(int(csv[i]))
+        deck.append(int(csv[i + 1]))
 
     return deck
 
