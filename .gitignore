@@ -10,8 +10,9 @@ dist/
 build/
 
 # Competition engine (not redistributable — download from Kaggle Data tab)
+# tools/cg-lib/ is ignored (raw download location)
+# agent/cg/  is TRACKED — it must ship inside the submission tar.gz
 tools/cg-lib/
-agent/cg/
 **/cg-lib/
 
 # Submission archives
