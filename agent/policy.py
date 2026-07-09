@@ -62,6 +62,7 @@ ULTRA_BALL    = 1121
 UNFAIR_STAMP  = 1080
 RISKY_RUINS   = 1260
 WATCHTOWER    = 1256
+BATTLE_CAGE   = 1264
 BOSS_ORDERS   = 1182
 COLRESS       = 1194
 CRISPIN       = 1198
@@ -291,9 +292,14 @@ def handle_main(obs: Observation, options, min_count: int, max_count: int) -> li
 
         # ── ABILITY ─────────────────────────────────────────────────────────
         elif o.type == OptionType.ABILITY:
-            # Blaziken ex: attach 2 Fire from discard to your Pokémon
-            fire_in_discard = discard[FIRE_ENERGY]
-            score = 8500.0 if fire_in_discard >= 1 else -9999.0
+            card = _get_card(obs, o.area, o.index, my_idx)
+            if card and card.id == DRAKLOAK:
+                score = 8000.0  # Always use Recon Directive — free card draw
+            elif card and card.id == BLAZIKEN_EX:
+                fire_in_discard = discard[FIRE_ENERGY]
+                score = 8500.0 if fire_in_discard >= 1 else -9999.0
+            else:
+                score = 2000.0
 
         # ── EVOLVE ──────────────────────────────────────────────────────────
         elif o.type == OptionType.EVOLVE:
@@ -471,16 +477,18 @@ def handle_main(obs: Observation, options, min_count: int, max_count: int) -> li
                             score = 500.0
 
                     elif cid == UNFAIR_STAMP:
-                        # Opponent shuffles hand to 2 cards (only when behind)
-                        op_prizes    = len(op_state.prize)
                         op_hand_size = getattr(op_state, 'handCount', 5)
-                        if my_prizes > op_prizes and op_hand_size >= 5:
-                            score = 5000.0  # We're behind, they have big hand
+                        if not supporter_played and op_hand_size >= 6:
+                            score = 5000.0  # Always disrupt big hands
                         else:
                             score = -9999.0
 
                     elif cid in (RISKY_RUINS, WATCHTOWER):
-                        score = 2000.0   # Stadiums — play when available
+                        stadium = state.stadium[0] if state.stadium else None
+                        if stadium and stadium.id == BATTLE_CAGE:
+                            score = 9000.0  # Must remove Battle Cage before Phantom Dive
+                        else:
+                            score = 2000.0
 
                     else:
                         score = 1000.0
