@@ -121,9 +121,9 @@ bash agent/build_submission.sh
 
 | Version | Agent Type | Deck | Ladder Elo | Notes |
 |---|---|---|---|---|
-| v1 | Random | TBD | — | Baseline — legal moves only |
-| v2 | Heuristic | TBD | — | First policy pass |
-| v3 | Priority scoring | TBD | — | Per-context scoring |
+| v1.2 | Random | Kiyota Mega Lucario ex (placeholder) | 179.5 | Baseline established — random policy loses as expected |
+| v2 | Heuristic | Dragapult EX / Blaziken EX | TBD | In development |
+| v3 | Priority scoring + Search API | Dragapult EX / Blaziken EX | TBD | Planned |
 
 *Updated as ladder results come in.*
 
