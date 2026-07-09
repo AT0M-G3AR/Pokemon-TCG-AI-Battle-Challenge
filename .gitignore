@@ -37,3 +37,5 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+replay.html
+deck.csv
