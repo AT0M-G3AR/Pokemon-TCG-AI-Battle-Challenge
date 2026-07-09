@@ -1,5 +1,5 @@
 # PTCG AI Battle Challenge — Team Onboarding Guide
-## For: [Brother's Name] | AT0M-G3AR Team | July 2026
+## For: MugenTigre | The Unovans Team | July 2026
 
 ---
 
