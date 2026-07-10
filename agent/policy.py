@@ -36,11 +36,11 @@ CARD_DB = {c.cardId: c for c in all_card_data()}
 # ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────────────────────
-ABRA         = 109
+ABRA         = 109   # TWM — Teleporter free pivot
 KADABRA      = 742
 ALAKAZAM     = 743   # Powerful Hand — main attacker
 ALAKAZAM_TWM = 245   # Strange Hacking tech
-DUNSPARCE    = 65
+DUNSPARCE    = 65    # TEF — zero retreat cost
 DUDUNSPARCE  = 66
 SHAYMIN      = 343
 
@@ -553,6 +553,9 @@ def handle_activate(obs, options, min_count, max_count):
             # Check if this is Dudunsparce's ability
             card = _get_card(obs, o.area if hasattr(o, 'area') else AreaType.BENCH,
                            o.index, my_idx)
+            
+            # TODO (Brother): In handle_activate, Abra 109's Teleporter should score high
+            # when Abra is active and we have a better Pokémon on bench
             if card and card.id == DUDUNSPARCE and is_lethal:
                 score = -9999.0  # Don't draw if we're already lethal!
             else:
