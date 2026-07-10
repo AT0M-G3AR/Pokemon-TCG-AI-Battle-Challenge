@@ -92,6 +92,7 @@ CTX_DISCARD_ENERGY    = SelectContext.DISCARD_ENERGY         # value=30
 CTX_EVOLVE            = SelectContext.EVOLVE                 # value=37
 CTX_DAMAGE_COUNTER    = SelectContext.DAMAGE_COUNTER
 CTX_DAMAGE_CTR_ANY    = SelectContext.DAMAGE_COUNTER_ANY
+CTX_ACTIVATE          = SelectContext.ACTIVATE
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TURN STATE
@@ -240,6 +241,7 @@ def select_action(obs: Observation) -> list[int]:
             CTX_EVOLVE:         handle_evolve,
             CTX_DAMAGE_COUNTER: handle_damage_counter,
             CTX_DAMAGE_CTR_ANY: handle_damage_counter,
+            CTX_ACTIVATE:       handle_activate,
         }
         handler = handlers.get(context, handle_generic)
         return handler(obs, options, min_count, max_count)
@@ -444,8 +446,9 @@ def handle_main(obs: Observation, options, min_count: int, max_count: int) -> li
                         # Evolve Basic directly to Stage 2 (Dreepy → Dragapult ex)
                         dreepy_in_play    = field[DREEPY] > 0
                         dragapult_in_hand = hand[DRAGAPULT_EX] > 0
+                        # Boost score even higher to ensure it fires BEFORE supporters
                         if dreepy_in_play and dragapult_in_hand:
-                            score = 8500.0   # Massive tempo — instant Stage 2
+                            score = 9500.0  # Higher than any supporter (8000 max)
                         else:
                             score = -9999.0
 
@@ -635,6 +638,27 @@ def handle_damage_counter(obs: Observation, options, min_count: int, max_count: 
 
         scores.append(score)
 
+    return _pick_best(scores, min_count, max_count)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HANDLER: ACTIVATE
+# ─────────────────────────────────────────────────────────────────────────────
+
+def handle_activate(obs: Observation, options, min_count: int, max_count: int) -> list[int]:
+    # Always YES to Blaziken ability if Fire in discard
+    # Always YES to Drakloak Recon Directive
+    state  = obs.current
+    my_idx = state.yourIndex
+    discard = _discard_counts(state, my_idx)
+    
+    scores = []
+    for o in options:
+        if o.type == OptionType.YES:
+            score = 9000.0  # Always activate abilities in this deck
+        else:
+            score = -9000.0  # Never skip
+        scores.append(score)
     return _pick_best(scores, min_count, max_count)
 
 
