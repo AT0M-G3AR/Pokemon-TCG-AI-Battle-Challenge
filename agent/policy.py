@@ -555,6 +555,7 @@ def handle_activate(obs, options, min_count, max_count):
                 score = 9000.0
         else:
             score = -9000.0
+        scores.append(score)
     return _pick_best(scores, min_count, max_count)
 
 
