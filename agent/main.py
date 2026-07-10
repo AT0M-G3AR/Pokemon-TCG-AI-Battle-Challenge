@@ -9,7 +9,8 @@ from policy import select_action
 # Kaggle runtime path: /kaggle_simulations/agent/deck.csv
 # ─────────────────────────────────────────────────────────────────────────────
 
-file_path = "deck.csv"
+current_dir = os.path.dirname(os.path.abspath(__file__))
+file_path = os.path.join(current_dir, "deck.csv")
 if not os.path.exists(file_path):
     file_path = "/kaggle_simulations/agent/deck.csv"
 
