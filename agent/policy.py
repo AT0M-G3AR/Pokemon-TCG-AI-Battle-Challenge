@@ -318,6 +318,14 @@ def handle_main(obs, options, min_count, max_count):
             elif card and card.id in (KADABRA, ALAKAZAM):
                 # Psychic Draw on evolve — handled separately
                 score = 12000.0
+            elif card and card.id == ABRA:
+                # Teleporter ability
+                # NEVER use if bench is empty (instant loss by bench out)
+                if bench_space == 5:  # Means 0 bench Pokemon (5 spaces available)
+                    score = -9999.0
+                else:
+                    # Use to pivot to a stronger Pokemon on the bench
+                    score = 11000.0
             else:
                 score = 5000.0
 
@@ -563,10 +571,15 @@ def handle_activate(obs, options, min_count, max_count):
             card = _get_card(obs, o.area if hasattr(o, 'area') else AreaType.BENCH,
                            o.index, my_idx)
             
-            # TODO (Brother): In handle_activate, Abra 109's Teleporter should score high
-            # when Abra is active and we have a better Pokémon on bench
             if card and card.id == DUDUNSPARCE and is_lethal:
                 score = -9999.0  # Don't draw if we're already lethal!
+            elif card and card.id == ABRA:
+                # Teleporter ACTIVATE confirmation
+                bench_empty = all(p is None for p in state.players[my_idx].bench)
+                if bench_empty:
+                    score = -9999.0  # NEVER shuffle if no bench
+                else:
+                    score = 9000.0
             else:
                 score = 9000.0
         else:
