@@ -92,6 +92,8 @@ CTX_DISCARD_ENERGY    = SelectContext.DISCARD_ENERGY         # value=30
 CTX_EVOLVE            = SelectContext.EVOLVE                 # value=37
 CTX_DAMAGE_COUNTER    = SelectContext.DAMAGE_COUNTER
 CTX_DAMAGE_CTR_ANY    = SelectContext.DAMAGE_COUNTER_ANY
+CTX_DAMAGE_CTR_COUNT  = SelectContext.DAMAGE_COUNTER_COUNT  # value=39
+CTX_TO_HAND_ENERGY    = SelectContext.TO_HAND_ENERGY         # value=31
 CTX_ACTIVATE          = SelectContext.ACTIVATE
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -240,8 +242,10 @@ def select_action(obs: Observation) -> list[int]:
             CTX_DISCARD_ENERGY: handle_discard_energy,
             CTX_EVOLVE:         handle_evolve,
             CTX_DAMAGE_COUNTER: handle_damage_counter,
-            CTX_DAMAGE_CTR_ANY: handle_damage_counter,
-            CTX_ACTIVATE:       handle_activate,
+            CTX_DAMAGE_CTR_ANY:   handle_damage_counter,
+            CTX_DAMAGE_CTR_COUNT: handle_damage_counter_count,
+            CTX_TO_HAND_ENERGY:   handle_to_hand_energy,
+            CTX_ACTIVATE:         handle_activate,
         }
         handler = handlers.get(context, handle_generic)
         return handler(obs, options, min_count, max_count)
@@ -1068,6 +1072,86 @@ def handle_to_active(obs: Observation, options, min_count: int, max_count: int) 
 
         if hp_left <= 30:
             score -= 2000.0  # Don't send up near-dead Pokémon
+
+        scores.append(score)
+
+    return _pick_best(scores, min_count, max_count)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HANDLER: DAMAGE_COUNTER_COUNT (context=39)
+# Engine asks: how many counters to place on the previously selected target?
+# Options are OptionType.NUMBER — integers from 0 to remaining counters.
+# Always place the maximum to concentrate damage and secure KOs.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def handle_damage_counter_count(obs: Observation, options, min_count: int, max_count: int) -> list[int]:
+    """
+    Choose how many damage counters to place on the selected target.
+    Phantom Dive has 6 total counters (60 damage) to distribute.
+    Strategy: always place ALL remaining counters on one target.
+    Never split — concentrate damage to guarantee KOs.
+    """
+    scores = []
+    for o in options:
+        number = getattr(o, 'number', 0)
+        scores.append(float(number) * 1000.0)  # Always pick highest count
+    return _pick_best(scores, min_count, max_count)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HANDLER: TO_HAND_ENERGY (context=31)
+# Fires after Crispin: choose which energy card to take into hand.
+# The other energy was already attached directly to a Pokémon.
+# Pick the energy type most needed in hand for next turn.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def handle_to_hand_energy(obs: Observation, options, min_count: int, max_count: int) -> list[int]:
+    """
+    Choose which energy to take to hand (Crispin's second step).
+    Options are OptionType.CARD — specific energy cards.
+    Strategy: pick Psychic if Dragapult needs it, Fire if Blaziken needs it.
+    """
+    state  = obs.current
+    my_idx = state.yourIndex
+    field  = _field_counts(state, my_idx)
+
+    # Check what energy Dragapult ex needs
+    active = state.players[my_idx].active[0] if state.players[my_idx].active else None
+    dragapult_needs_psychic = False
+    dragapult_needs_fire    = False
+
+    if active and active.id == DRAGAPULT_EX:
+        energies = getattr(active, 'energies', [])
+        dragapult_needs_psychic = EnergyType.PSYCHIC not in energies
+        dragapult_needs_fire    = EnergyType.FIRE not in energies
+    else:
+        # Check bench Dragapult ex too
+        for p in state.players[my_idx].bench:
+            if p and p.id == DRAGAPULT_EX:
+                energies = getattr(p, 'energies', [])
+                if EnergyType.PSYCHIC not in energies:
+                    dragapult_needs_psychic = True
+                if EnergyType.FIRE not in energies:
+                    dragapult_needs_fire = True
+
+    scores = []
+    for o in options:
+        card = _get_card(obs, o.area, o.index, my_idx)
+        if not card:
+            scores.append(0.0)
+            continue
+
+        cid = card.id
+        if cid == PSYCHIC_ENERGY:
+            score = 9000.0 if dragapult_needs_psychic else 5000.0
+        elif cid == FIRE_ENERGY:
+            # Fire goes to hand if Dragapult needs it or Blaziken needs charging
+            blaziken_in_field = field[TORCHIC] + field[COMBUSKEN] + field[BLAZIKEN_EX]
+            score = 9000.0 if dragapult_needs_fire else (
+                    7000.0 if blaziken_in_field >= 1 else 4000.0)
+        else:
+            score = 1000.0
 
         scores.append(score)
 
