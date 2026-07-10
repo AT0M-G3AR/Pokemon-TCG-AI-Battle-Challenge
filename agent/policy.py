@@ -398,15 +398,24 @@ def handle_main(obs, options, min_count, max_count):
                             score = -9999.0
 
                     elif cid == DAWN:
-                        # Search Basic + Stage 1 + Stage 2
-                        # Best early to get Abra + Kadabra + Alakazam
+                        # Dawn finds Basic + Stage1 + Stage2 = 3 cards into hand
+                        # ALWAYS valuable — more cards = more Powerful Hand damage
+                        # Play BEFORE other supporters to maximize hand size
                         if not supporter_played:
-                            missing_abra    = alakazam_line_field < 2
-                            missing_alakazam = field[ALAKAZAM] < 1 and hand[ALAKAZAM] < 1
-                            if missing_abra or missing_alakazam:
-                                score = 8000.0
+                            hand_size = len(my_state.hand)
+                            missing_pieces = (
+                                alakazam_line_field < 3 or
+                                (field[ABRA] < 1 and hand[ABRA] < 1) or
+                                (field[ALAKAZAM] < 2 and hand[ALAKAZAM] < 1)
+                            )
+                            if missing_pieces:
+                                score = 8500.0   # Missing pieces — high priority
+                            elif hand_size <= 6:
+                                score = 7000.0   # Small hand — draw for damage
+                            elif hand_size <= 9:
+                                score = 5000.0   # Medium hand — still useful
                             else:
-                                score = 3000.0
+                                score = 2000.0   # Big hand — low priority
                         else:
                             score = -9999.0
 
