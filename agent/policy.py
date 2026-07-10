@@ -36,11 +36,11 @@ CARD_DB = {c.cardId: c for c in all_card_data()}
 # ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────────────────────
-ABRA         = 741
+ABRA         = 109
 KADABRA      = 742
 ALAKAZAM     = 743   # Powerful Hand — main attacker
 ALAKAZAM_TWM = 245   # Strange Hacking tech
-DUNSPARCE    = 305
+DUNSPARCE    = 65
 DUDUNSPARCE  = 66
 SHAYMIN      = 343
 
