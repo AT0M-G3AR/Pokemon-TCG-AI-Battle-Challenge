@@ -325,10 +325,10 @@ def handle_main(obs, options, min_count, max_count):
         elif o.type == OptionType.EVOLVE:
             card = _get_card(obs, AreaType.HAND, o.index, my_idx)
             if card:
-                if card.id == ALAKAZAM:
-                    score = 9000.0   # Get Powerful Hand online ASAP
-                elif card.id == KADABRA:
-                    score = 8000.0   # Draw 2 on evolve
+                if card.id == KADABRA:
+                    score = 9500.0  # HIGHER than Rare Candy — draw 2 first
+                elif card.id == ALAKAZAM:
+                    score = 9000.0  # Then evolve to Alakazam for draw 3
                 elif card.id == ALAKAZAM_TWM:
                     score = 7000.0 if mist_on_opponent else 4000.0
                 else:
@@ -382,7 +382,7 @@ def handle_main(obs, options, min_count, max_count):
                         alakazam_in_hand = hand[ALAKAZAM] > 0
                         kadabra_missing = field[KADABRA] == 0
                         if abra_in_play and alakazam_in_hand and kadabra_missing:
-                            score = 9500.0  # Skip Kadabra — instant Stage 2
+                            score = 7000.0  # Skip Kadabra — instant Stage 2
                         else:
                             score = -9999.0
 
@@ -478,8 +478,12 @@ def handle_main(obs, options, min_count, max_count):
                             score = -9999.0
 
                     elif cid == BATTLE_CAGE:
-                        # Our own stadium — block opponent's spread damage
-                        score = 2500.0
+                        # Check if opponent has a stadium that benefits them
+                        current_stadium = getattr(state, 'stadium', None)
+                        if current_stadium and getattr(current_stadium, 'playerIndex', my_idx) != my_idx:
+                            score = 8000.0  # Replace opponent's stadium immediately
+                        else:
+                            score = 2500.0
 
                     else:
                         score = 1000.0
@@ -961,15 +965,9 @@ def handle_discard_energy(obs, options, min_count, max_count):
 
 
 def handle_is_first(obs, options, min_count, max_count):
-    """
-    Choose whether to go first or second at game start.
-    Going second = draw an extra card on turn 1.
-    For Alakazam: going second is slightly better (extra card = more hand size).
-    But going first means attacking first. Either is fine — pick first (index 0).
-    """
-    # Options: [go first, go second] or similar
-    # Always choose to go first — attack pressure is important
-    return [0] if options else []
+    # Going second = extra card draw = +20 Powerful Hand damage
+    # Always choose second (index 1 if available, else 0)
+    return [1] if len(options) > 1 else [0]
 
 
 def handle_draw_count(obs, options, min_count, max_count):
