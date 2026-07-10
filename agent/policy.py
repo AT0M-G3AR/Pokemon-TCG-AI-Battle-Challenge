@@ -549,6 +549,7 @@ def handle_main(obs, options, min_count, max_count):
 
         scores.append(score)
 
+    scores = _sanity_check(obs, options, scores)
     return _pick_best(scores, min_count, max_count)
 
 
@@ -1015,3 +1016,44 @@ def handle_generic(obs, options, min_count, max_count):
     context = getattr(obs.select, 'context', 'UNKNOWN')
     print(f"[UNHANDLED CONTEXT: {context}] — random pick")
     return _safe_fallback(options, min_count)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SANITY CHECK — catch catastrophic mistakes before they execute
+# These are game-losing moves no human player would ever make
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _sanity_check(obs, options, scores):
+    """
+    Override scores for any move that would instantly lose the game.
+    Called at the end of handle_main before returning.
+    """
+    state  = obs.current
+    my_idx = state.yourIndex
+    my_state = state.players[my_idx]
+
+    bench = [p for p in my_state.bench if p is not None]
+    bench_count = len(bench)
+
+    for i, o in enumerate(options):
+        # RULE 1: Never use Teleporter with empty bench
+        if o.type == OptionType.ABILITY:
+            if bench_count == 0:
+                scores[i] = -9999.0  # Instant loss prevention
+
+        # RULE 2: Never end turn if we can attack
+        if o.type == OptionType.END:
+            has_attack = any(opt.type == OptionType.ATTACK
+                           for opt in options)
+            if has_attack:
+                scores[i] = -9999.0  # Never pass when we can attack
+
+        # RULE 3: Never use Run Away Draw if it would empty the board
+        # (Dudunsparce shuffles itself back — safe unless it's the only Pokemon)
+        if o.type == OptionType.ABILITY:
+            active = my_state.active[0] if my_state.active else None
+            if (active and active.id == DUDUNSPARCE and
+                bench_count == 0):
+                scores[i] = -9999.0  # Would leave board empty
+
+    return scores
