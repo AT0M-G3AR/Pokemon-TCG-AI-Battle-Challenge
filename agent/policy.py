@@ -326,14 +326,25 @@ def handle_main(obs, options, min_count, max_count):
                             o.index, my_idx)
             if card and card.id == DUDUNSPARCE:
                 # Run Away Draw — ALWAYS highest priority
-                # SAFETY: Never use if Dudunsparce is the ONLY bench Pokemon
-                # Shuffling it back would leave active stranded = instant loss
-                bench_without_dudun = [p for p in state.players[my_idx].bench 
-                                       if p is not None and p.id != DUDUNSPARCE]
+                # SAFETY: Never use if this Dudunsparce is the ONLY Pokémon we have in play.
+                # Shuffling it would leave us with no active/bench = instant loss.
+                
+                other_pokemon = 0
+                
+                # Check active
+                if my_state.active and my_state.active[0]:
+                    if getattr(my_state.active[0], 'id', None) != DUDUNSPARCE or my_state.active[0] != card:
+                        other_pokemon += 1
+                        
+                # Check bench
+                for p in my_state.bench:
+                    if p is not None and p != card:
+                        other_pokemon += 1
+                
                 if is_lethal:
                     score = -9999.0  # Don't draw if already lethal
-                elif len(bench_without_dudun) == 0:
-                    score = -9999.0  # NEVER draw if only Pokemon on bench — bench-out loss!
+                elif other_pokemon == 0:
+                    score = -9999.0  # NEVER draw if it's our ONLY Pokemon in play
                 else:
                     score = 15000.0  # Each Dudunsparce scores independently
             elif card and card.id in (KADABRA, ALAKAZAM):
