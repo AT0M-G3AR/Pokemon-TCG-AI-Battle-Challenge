@@ -173,12 +173,25 @@ def _lethal_now(state, my_idx, op_idx):
     Can we KO the opponent's active RIGHT NOW without playing more cards?
     If yes — stop playing cards, just attack.
     """
+    my_state = state.players[my_idx]
     op_active = state.players[op_idx].active
+    
     if not op_active or not op_active[0]:
         return False
+        
+    my_active = my_state.active[0] if my_state.active else None
+    if not my_active or my_active.id != ALAKAZAM:
+        return False
+        
+    # Check if Alakazam has the required 1 Psychic energy
+    energy_count = _energy_count(my_active)
+    if energy_count < 1:
+        return False
+        
     hp_left = _hp_remaining(op_active[0])
-    hand_size = len(state.players[my_idx].hand)
+    hand_size = len(my_state.hand)
     damage = _powerful_hand_damage(hand_size)
+    
     return damage >= hp_left
 
 
