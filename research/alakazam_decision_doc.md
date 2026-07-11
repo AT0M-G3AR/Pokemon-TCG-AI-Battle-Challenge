@@ -1,5 +1,5 @@
 # Alakazam + Dudunsparce — Decision Document
-## Authors: Gary (G3AR-DR1VE) + [Brother]
+## Authors: The Unovans
 ## Based on: competitive PTCGL matches with this exact deck
 
 ---
