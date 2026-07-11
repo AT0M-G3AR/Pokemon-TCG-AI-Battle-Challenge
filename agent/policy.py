@@ -345,6 +345,8 @@ def handle_main(obs, options, min_count, max_count):
                     score = -9999.0  # Don't draw if already lethal
                 elif other_pokemon == 0:
                     score = -9999.0  # NEVER draw if it's our ONLY Pokemon in play
+                elif my_state.deckCount <= 4:
+                    score = -9999.0  # NEVER draw if deck is too low (prevents deck-out loss)
                 else:
                     score = 15000.0  # Each Dudunsparce scores independently
             elif card and card.id in (KADABRA, ALAKAZAM):
