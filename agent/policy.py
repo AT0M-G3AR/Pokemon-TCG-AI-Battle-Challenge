@@ -36,7 +36,7 @@ CARD_DB = {c.cardId: c for c in all_card_data()}
 # ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────────────────────
-ABRA         = 109   # TWM — Teleporter free pivot
+ABRA         = 741
 KADABRA      = 742
 ALAKAZAM     = 743   # Powerful Hand — main attacker
 ALAKAZAM_TWM = 245   # Strange Hacking tech
@@ -312,9 +312,15 @@ def handle_main(obs, options, min_count, max_count):
             card = _get_card(obs, o.area if hasattr(o, 'area') else AreaType.BENCH,
                             o.index, my_idx)
             if card and card.id == DUDUNSPARCE:
-                # Score each Dudunsparce ability independently
+                # Run Away Draw — ALWAYS highest priority
+                # SAFETY: Never use if Dudunsparce is the ONLY bench Pokemon
+                # Shuffling it back would leave active stranded = instant loss
+                bench_without_dudun = [p for p in state.players[my_idx].bench 
+                                       if p is not None and p.id != DUDUNSPARCE]
                 if is_lethal:
-                    score = -9999.0
+                    score = -9999.0  # Don't draw if already lethal
+                elif len(bench_without_dudun) == 0:
+                    score = -9999.0  # NEVER draw if only Pokemon on bench — bench-out loss!
                 else:
                     score = 15000.0  # Each Dudunsparce scores independently
             elif card and card.id in (KADABRA, ALAKAZAM):
@@ -408,24 +414,12 @@ def handle_main(obs, options, min_count, max_count):
                             score = -9999.0
 
                     elif cid == DAWN:
-                        # Dawn finds Basic + Stage1 + Stage2 = 3 cards into hand
-                        # ALWAYS valuable — more cards = more Powerful Hand damage
-                        # Play BEFORE other supporters to maximize hand size
+                        # Dawn ALWAYS plays when available — no conditions
+                        # Finds Basic + Stage 1 + Stage 2 simultaneously
+                        # We ALWAYS want Pokemon on the board regardless of hand size
+                        # More bench Pokemon = more options = better Powerful Hand setup
                         if not supporter_played:
-                            hand_size = len(my_state.hand)
-                            missing_pieces = (
-                                alakazam_line_field < 3 or
-                                (field[ABRA] < 1 and hand[ABRA] < 1) or
-                                (field[ALAKAZAM] < 2 and hand[ALAKAZAM] < 1)
-                            )
-                            if missing_pieces:
-                                score = 8500.0   # Missing pieces — high priority
-                            elif hand_size <= 6:
-                                score = 7000.0   # Small hand — draw for damage
-                            elif hand_size <= 9:
-                                score = 5000.0   # Medium hand — still useful
-                            else:
-                                score = 2000.0   # Big hand — low priority
+                            score = 8500.0   # ALWAYS play Dawn — unconditional
                         else:
                             score = -9999.0
 
@@ -851,9 +845,22 @@ def handle_attach_from(obs, options, min_count, max_count):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def handle_attach_to(obs, options, min_count, max_count):
-    """Always attach energy to Alakazam first."""
+    """
+    Score attaching this energy to this target.
+
+    RULES:
+    - Enriching Energy (13): ONLY attach to Dunsparce/Dudunsparce
+      They shuffle back into deck = energy recycles. Draws 4 cards.
+    - All other energy: ONLY attach to Alakazam line (Abra/Kadabra/Alakazam)
+    - NEVER attach any energy to Dunsparce/Dudunsparce except Enriching
+    - NEVER attach Enriching Energy to Alakazam line (waste of ACE SPEC)
+    """
     state  = obs.current
     my_idx = state.yourIndex
+    
+    # Get the ID of the energy card being attached
+    context_card = getattr(obs.select, 'contextCard', None)
+    energy_id = getattr(context_card, 'id', 0) if context_card else 0
 
     scores = []
     for o in options:
@@ -863,11 +870,37 @@ def handle_attach_to(obs, options, min_count, max_count):
         if not poke:
             scores.append(0.0)
             continue
-        if poke.id == ALAKAZAM:       scores.append(9000.0)
-        elif poke.id == ALAKAZAM_TWM: scores.append(8000.0)
-        elif poke.id == KADABRA:      scores.append(5000.0)
-        elif poke.id == ABRA:         scores.append(2000.0)
-        else:                          scores.append(500.0)
+            
+        tid = poke.id
+        score = 0.0
+
+        if energy_id == ENRICHING_ENERGY:
+            # Enriching Energy ONLY goes to Dunsparce/Dudunsparce
+            # They draw 4 cards on attachment AND recycle when Run Away Draw fires
+            if tid == DUNSPARCE:
+                score = 9500.0   # Best target — recycles + draws 4
+            elif tid == DUDUNSPARCE:
+                score = 9000.0   # Also recycles + draws 4
+            else:
+                score = -9999.0  # NEVER attach Enriching to Alakazam line
+
+        elif energy_id in (PSYCHIC_ENERGY, TELEPATH_ENERGY):
+            # Psychic energy ONLY goes to Alakazam line
+            if tid == DUNSPARCE or tid == DUDUNSPARCE:
+                score = -9999.0  # NEVER attach to Dunsparce line
+            elif tid == ALAKAZAM:
+                score = 9000.0   # Primary attacker — always first
+            elif tid == KADABRA:
+                score = 7000.0   # Will evolve to Alakazam soon
+            elif tid == ABRA:
+                score = 4000.0   # Pre-load for evolution chain
+            else:
+                score = -9999.0  # No other targets
+        else:
+            score = -9999.0
+            
+        scores.append(score)
+
     return _pick_best(scores, min_count, max_count)
 
 
