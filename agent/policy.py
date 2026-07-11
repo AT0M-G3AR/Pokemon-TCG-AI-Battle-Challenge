@@ -300,6 +300,10 @@ def handle_main(obs, options, min_count, max_count):
                     score = 15000.0
                 else:
                     score = 3000.0
+            elif active and active.id == KADABRA:
+                score = 5000.0  # Always attack with Kadabra — never pass
+            elif active and active.id == ABRA:
+                score = 3000.0  # Beam for 10 is better than doing nothing
             else:
                 score = 2000.0
 
@@ -308,13 +312,11 @@ def handle_main(obs, options, min_count, max_count):
             card = _get_card(obs, o.area if hasattr(o, 'area') else AreaType.BENCH,
                             o.index, my_idx)
             if card and card.id == DUDUNSPARCE:
-                # Run Away Draw — ALWAYS highest priority
-                # Draw 3 cards then shuffle Dudunsparce back in
-                # Exception: if already lethal, don't draw (reduces hand size after shuffle)
+                # Score each Dudunsparce ability independently
                 if is_lethal:
-                    score = -9999.0  # Don't draw if already lethal!
+                    score = -9999.0
                 else:
-                    score = 15000.0
+                    score = 15000.0  # Each Dudunsparce scores independently
             elif card and card.id in (KADABRA, ALAKAZAM):
                 # Psychic Draw on evolve — handled separately
                 score = 12000.0
@@ -439,11 +441,13 @@ def handle_main(obs, options, min_count, max_count):
                             score = -9999.0
 
                     elif cid == BOSS_ORDERS:
-                        # Gust best target — only if we can KO it
                         if not supporter_played and op_bench:
-                            best = max(_target_score(p, my_prizes) for p in op_bench)
-                            active_val = _target_score(op_active, my_prizes) if op_active else 0
-                            if best > active_val + 300:
+                            best_target = max(op_bench, 
+                                key=lambda p: _target_score(p, my_prizes) + 
+                                             (5000 if _hp_remaining(p) <= 60 else 0))  # Bonus for damaged
+                            best_score = _target_score(best_target, my_prizes)
+                            active_score = _target_score(op_active, my_prizes) if op_active else 0
+                            if best_score > active_score + 200:
                                 score = 7000.0
                             else:
                                 score = -9999.0
@@ -451,14 +455,15 @@ def handle_main(obs, options, min_count, max_count):
                             score = -9999.0
 
                     elif cid == LANAS_AID:
-                        # Put up to 3 non-Rule Box Pokémon from discard to hand
-                        # Inflates hand size for surprise Powerful Hand KO
-                        alakazam_in_discard = discard[ABRA] + discard[KADABRA] + discard[ALAKAZAM]
-                        dunsparce_in_discard = discard[DUNSPARCE] + discard[DUDUNSPARCE]
                         if not supporter_played:
-                            if alakazam_in_discard + dunsparce_in_discard >= 2:
-                                score = 6500.0  # Recover + inflate hand
-                            elif alakazam_in_discard >= 1:
+                            total_in_discard = sum(discard[c] for c in 
+                                [ABRA, KADABRA, ALAKAZAM, DUNSPARCE, DUDUNSPARCE])
+                            hand_size = len(my_state.hand)
+                            if hand_size <= 3 and total_in_discard >= 2:
+                                score = 8500.0  # Emergency recovery after disruption
+                            elif total_in_discard >= 2:
+                                score = 6500.0
+                            elif total_in_discard >= 1:
                                 score = 5000.0
                             else:
                                 score = -9999.0
