@@ -27,6 +27,12 @@ from cg.api import (
     Observation, SelectContext, OptionType, AreaType,
     CardType, EnergyType, Card, Pokemon, all_card_data, to_observation_class
 )
+from search_api import (
+    evaluate_attack,
+    should_draw_before_attack,
+    cards_needed_to_ko,
+    calculate_powerful_hand_damage
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CARD DATABASE
@@ -55,6 +61,9 @@ LANAS_AID     = 1184
 HILDA         = 1225
 DAWN          = 1231
 BATTLE_CAGE   = 1264
+SHAYMIN       = 343
+XEROSIC       = 1197
+NIGHTTIME_MINE = 1266
 
 PSYCHIC_ENERGY  = 5
 TELEPATH_ENERGY = 19
@@ -195,15 +204,18 @@ def _lethal_now(state, my_idx, op_idx):
     return damage >= hp_left
 
 
-def _target_score(pokemon, my_prizes_left):
+def _target_score(pokemon, my_prizes_left, current_damage=0):
     if pokemon is None:
         return -9999.0
     prizes = _prize_count(pokemon)
     hp_left = _hp_remaining(pokemon)
     score = prizes * 1000.0
+    # Massively prioritize things we can actually kill
+    if current_damage > 0 and hp_left <= current_damage:
+        score += 10000.0
     score += _energy_count(pokemon) * 150.0
     score -= hp_left * 0.3
-    if prizes >= my_prizes_left:
+    if prizes >= my_prizes_left and current_damage > 0 and hp_left <= current_damage:
         score += 50000.0
     return score
 
@@ -297,58 +309,40 @@ def handle_main(obs, options, min_count, max_count):
         # ── ATTACK ──────────────────────────────────────────────────────────
         if o.type == OptionType.ATTACK:
             if active and active.id == ALAKAZAM:
-                if mist_on_opponent:
-                    # Powerful Hand blocked — use Strange Hacking if available
-                    # or just score low
-                    score = 500.0
-                elif is_lethal:
-                    score = 20000.0  # Always attack for the KO
-                elif can_lethal_after_draw:
-                    score = 18000.0  # Draw first then attack
-                else:
-                    score = 8000.0   # Attack anyway — deal damage
-            elif active and active.id == ALAKAZAM_TWM:
-                # Strange Hacking — use when opponent has Mist Energy
-                if mist_on_opponent:
-                    score = 15000.0
-                else:
-                    score = 3000.0
-            elif active and active.id == KADABRA:
-                score = 5000.0  # Always attack with Kadabra — never pass
-            elif active and active.id == ABRA:
-                score = 3000.0  # Beam for 10 is better than doing nothing
+                hand_size = len(my_state.hand)
+                op_hp = _hp_remaining(op_active) if op_active else 999
+                score = evaluate_attack(
+                    obs,
+                    o.index,
+                    op_hp,
+                    hand_size,
+                    my_prizes,
+                    len(op_state.prize)
+                )
             else:
-                score = 2000.0
+                score = 3000.0
 
         # ── ABILITY ─────────────────────────────────────────────────────────
         elif o.type == OptionType.ABILITY:
             card = _get_card(obs, o.area if hasattr(o, 'area') else AreaType.BENCH,
                             o.index, my_idx)
             if card and card.id == DUDUNSPARCE:
-                # Run Away Draw — ALWAYS highest priority
-                # SAFETY: Never use if this Dudunsparce is the ONLY Pokémon we have in play.
-                # Shuffling it would leave us with no active/bench = instant loss.
+                other_pokemon = sum(1 for p in my_state.bench if p is not None and p != card)
+                if my_state.active and my_state.active[0] and my_state.active[0] != card:
+                    other_pokemon += 1
+
+                hand_size = len(my_state.hand)
+                op_hp = _hp_remaining(op_active) if op_active else 999
+                dudun_safe = other_pokemon > 0 and my_state.deckCount > 4
                 
-                other_pokemon = 0
-                
-                # Check active
-                if my_state.active and my_state.active[0]:
-                    if getattr(my_state.active[0], 'id', None) != DUDUNSPARCE or my_state.active[0] != card:
-                        other_pokemon += 1
-                        
-                # Check bench
-                for p in my_state.bench:
-                    if p is not None and p != card:
-                        other_pokemon += 1
-                
-                if is_lethal:
-                    score = -9999.0  # Don't draw if already lethal
-                elif other_pokemon == 0:
-                    score = -9999.0  # NEVER draw if it's our ONLY Pokemon in play
-                elif my_state.deckCount <= 4:
-                    score = -9999.0  # NEVER draw if deck is too low (prevents deck-out loss)
+                if should_draw_before_attack(hand_size, op_hp, True, my_state.deckCount):
+                    score = 15000.0  # Drawing will unlock a KO
+                elif is_lethal:
+                    score = -9999.0  # Already lethal — don't reduce hand
+                elif dudun_safe:
+                    score = 15000.0  # Always draw when safe
                 else:
-                    score = 15000.0  # Each Dudunsparce scores independently
+                    score = -9999.0
             elif card and card.id in (KADABRA, ALAKAZAM):
                 # Psychic Draw on evolve — handled separately
                 score = 12000.0
@@ -390,11 +384,13 @@ def handle_main(obs, options, min_count, max_count):
                 if data and card_type == CardType.POKEMON:
                     if cid == ABRA:
                         score = 6000.0 if alakazam_line_field < 3 and bench_space > 0 else -9999.0
+                    elif cid == SHAYMIN:
+                        if bench_space >= 1:
+                            score = 7000.0  # Bench protection
+                        else:
+                            score = -9999.0
                     elif cid == DUNSPARCE:
                         score = 5500.0 if dunsparce_field < 3 and bench_space > 0 else -9999.0
-                    elif cid == SHAYMIN:
-                        # Bench protection against spread — situational
-                        score = 3000.0 if bench_space > 0 else -9999.0
                     else:
                         score = 2000.0 if bench_space > 0 else -9999.0
 
@@ -406,18 +402,25 @@ def handle_main(obs, options, min_count, max_count):
                         scores.append(score)
                         continue
 
-                    if cid == ENH_HAMMER:
-                        # Remove opponent's special energy (especially Mist Energy)
+                    elif cid == ENH_HAMMER:
+                        # Remove opponent's special energy
+                        op_active_has_special = any(
+                            getattr(e, 'id', 0) not in (5, 2, 1, 3, 4, 6, 7, 8, 9)
+                            for e in (getattr(op_active, 'energyCards', []) if op_active else [])
+                        )
+                        op_bench_has_special = any(
+                            getattr(e, 'id', 0) not in (5, 2, 1, 3, 4, 6, 7, 8, 9)
+                            for p in op_bench
+                            for e in getattr(p, 'energyCards', [])
+                        )
                         if mist_on_opponent:
-                            score = 19000.0  # Highest priority — unblocks Powerful Hand
+                            score = 19000.0
+                        elif op_active_has_special:
+                            score = 8000.0
+                        elif op_bench_has_special:
+                            score = 5000.0
                         else:
-                            # Still useful to remove other special energy
-                            op_has_special = any(
-                                getattr(e, 'id', 0) not in (5, 2, 1, 3, 4, 6, 7, 8, 9)
-                                for p in [op_active] + op_bench if p
-                                for e in getattr(p, 'energyCards', [])
-                            )
-                            score = 5000.0 if op_has_special else -9999.0
+                            score = -9999.0
 
                     elif cid == RARE_CANDY:
                         abra_in_play = field[ABRA] > 0
@@ -429,13 +432,9 @@ def handle_main(obs, options, min_count, max_count):
                             score = -9999.0
 
                     elif cid == POFFIN:
-                        # Search Abra + Dunsparce simultaneously
-                        needs_abra     = alakazam_line_field < 2
-                        needs_dunsparce = dunsparce_field < 2
-                        if bench_space >= 1 and (needs_abra or needs_dunsparce):
+                        # Poffin searches for HP <= 70. Shaymin has 80 HP, so it CANNOT be searched by Poffin!
+                        if bench_space >= 1:
                             score = 7500.0
-                        elif bench_space >= 1:
-                            score = 2000.0
                         else:
                             score = -9999.0
 
@@ -460,13 +459,19 @@ def handle_main(obs, options, min_count, max_count):
                         else:
                             score = -9999.0
 
+
                     elif cid == BOSS_ORDERS:
                         if not supporter_played and op_bench:
+                            # Calculate our active's damage
+                            current_dmg = 0
+                            my_active = next((p for p in my_state.active if p), None)
+                            if my_active and my_active.id == ALAKAZAM:
+                                current_dmg = len(my_state.hand) * 20
+                                
                             best_target = max(op_bench, 
-                                key=lambda p: _target_score(p, my_prizes) + 
-                                             (5000 if _hp_remaining(p) <= 60 else 0))  # Bonus for damaged
-                            best_score = _target_score(best_target, my_prizes)
-                            active_score = _target_score(op_active, my_prizes) if op_active else 0
+                                key=lambda p: _target_score(p, my_prizes, current_dmg))
+                            best_score = _target_score(best_target, my_prizes, current_dmg)
+                            active_score = _target_score(op_active, my_prizes, current_dmg) if op_active else 0
                             if best_score > active_score + 200:
                                 score = 7000.0
                             else:
@@ -477,14 +482,14 @@ def handle_main(obs, options, min_count, max_count):
                     elif cid == LANAS_AID:
                         if not supporter_played:
                             total_in_discard = sum(discard[c] for c in 
-                                [ABRA, KADABRA, ALAKAZAM, DUNSPARCE, DUDUNSPARCE])
+                                [ABRA, KADABRA, ALAKAZAM, DUNSPARCE, DUDUNSPARCE, PSYCHIC_ENERGY])
                             hand_size = len(my_state.hand)
                             if hand_size <= 3 and total_in_discard >= 2:
                                 score = 8500.0  # Emergency recovery after disruption
                             elif total_in_discard >= 2:
                                 score = 6500.0
                             elif total_in_discard >= 1:
-                                score = 5000.0
+                                score = 6000.0  # TigerGGG tactics — early usage for dmg
                             else:
                                 score = -9999.0
                         else:
@@ -495,13 +500,18 @@ def handle_main(obs, options, min_count, max_count):
                         if alakazam_line_field < 2 or dunsparce_field < 1:
                             score = 6000.0
                         else:
-                            score = 2000.0
+                            score = 5000.0  # Just getting Dudunsparce is always good
 
                     elif cid == NIGHT_STRETCH:
                         # Recover Pokémon from discard
                         alakazam_lost = discard[ALAKAZAM]
                         abra_lost = discard[ABRA]
-                        if alakazam_lost >= 1:
+                        shaymin_lost = discard[SHAYMIN]
+                        has_shaymin = any(p and p.id == SHAYMIN for p in my_state.bench)
+                        
+                        if shaymin_lost >= 1 and not has_shaymin:
+                            score = 7000.0
+                        elif alakazam_lost >= 1:
                             score = 5500.0
                         elif abra_lost >= 1:
                             score = 4000.0
@@ -513,7 +523,7 @@ def handle_main(obs, options, min_count, max_count):
                         total_in_discard = sum(discard[c] for c in
                             [ABRA, KADABRA, ALAKAZAM, DUNSPARCE, DUDUNSPARCE])
                         if total_in_discard >= 3:
-                            score = 5000.0
+                            score = 7000.0
                         elif total_in_discard >= 2:
                             score = 3000.0
                         else:
@@ -521,6 +531,23 @@ def handle_main(obs, options, min_count, max_count):
 
                     elif cid == BATTLE_CAGE:
                         # Check if opponent has a stadium that benefits them
+                        current_stadium = getattr(state, 'stadium', None)
+                        if current_stadium and getattr(current_stadium, 'playerIndex', my_idx) != my_idx:
+                            score = 8000.0  # Replace opponent's stadium immediately
+                        else:
+                            score = 2500.0
+
+                    elif cid == XEROSIC:
+                        if not supporter_played:
+                            opp_hand = len(op_state.hand)
+                            if opp_hand > 3:
+                                score = 8000.0  # Disrupt opponent's large hand
+                            else:
+                                score = -1000.0
+                        else:
+                            score = -9999.0
+
+                    elif cid == NIGHTTIME_MINE:
                         current_stadium = getattr(state, 'stadium', None)
                         if current_stadium and getattr(current_stadium, 'playerIndex', my_idx) != my_idx:
                             score = 8000.0  # Replace opponent's stadium immediately
@@ -536,17 +563,37 @@ def handle_main(obs, options, min_count, max_count):
                 card   = _get_card(obs, AreaType.HAND, o.index, my_idx)
                 target = _get_card(obs, o.inPlayArea, o.inPlayIndex, my_idx)
                 if card and target:
-                    # Always attach to Alakazam first
-                    if target.id == ALAKAZAM:
-                        score = 9000.0
-                    elif target.id == ALAKAZAM_TWM:
-                        score = 8000.0
-                    elif target.id == KADABRA:
-                        score = 5000.0
-                    elif target.id == ABRA:
-                        score = 3000.0
+                    if card.id == ENRICHING_ENERGY:
+                        if my_state.deckCount <= 4:
+                            score = -9999.0  # Prevents drawing last 4 cards and instantly losing
+                        elif target.id == DUNSPARCE:
+                            score = 9500.0
+                        elif target.id == DUDUNSPARCE:
+                            score = 9000.0
+                        else:
+                            score = -9999.0
                     else:
-                        score = 500.0
+                        energy_count = sum(1 for e in getattr(target, 'energyCards', []))
+                        if energy_count >= 1:
+                            # Alakazam only needs ONE energy to attack.
+                            # We MUST NOT attach more than one because keeping extra energy
+                            # in hand adds +20 damage to Powerful Hand!
+                            if target.id in (ALAKAZAM, ALAKAZAM_TWM, KADABRA, ABRA):
+                                score = -9999.0
+                            else:
+                                score = 100.0
+                        else:
+                            # Attach exactly one energy to power them up
+                            if target.id == ALAKAZAM:
+                                score = 9000.0
+                            elif target.id == ALAKAZAM_TWM:
+                                score = 8000.0
+                            elif target.id == KADABRA:
+                                score = 5000.0
+                            elif target.id == ABRA:
+                                score = 3000.0
+                            else:
+                                score = 500.0
                 else:
                     score = 0.0
             else:
@@ -718,6 +765,8 @@ def handle_to_hand(obs, options, min_count, max_count):
 
         if cid == ALAKAZAM:
             score = 9000.0 if alakazam_in_field >= 1 else 5000.0
+        elif cid == SHAYMIN:
+            score = 8500.0 if not any(p and p.id == SHAYMIN for p in my_state.bench) else 1000.0
         elif cid == KADABRA:
             score = 8000.0 if field[ABRA] >= 1 else 3000.0
         elif cid == ABRA:
