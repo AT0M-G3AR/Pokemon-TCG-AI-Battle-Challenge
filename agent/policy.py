@@ -61,6 +61,7 @@ LANAS_AID     = 1184
 HILDA         = 1225
 DAWN          = 1231
 BATTLE_CAGE   = 1264
+LILLIE_CLEFAIRY_EX = 272
 SHAYMIN       = 343
 XEROSIC       = 1197
 NIGHTTIME_MINE = 1266
@@ -327,22 +328,22 @@ def handle_main(obs, options, min_count, max_count):
             card = _get_card(obs, o.area if hasattr(o, 'area') else AreaType.BENCH,
                             o.index, my_idx)
             if card and card.id == DUDUNSPARCE:
-                other_pokemon = sum(1 for p in my_state.bench if p is not None and p != card)
-                if my_state.active and my_state.active[0] and my_state.active[0] != card:
+                other_pokemon = 0
+                if my_active is not None and my_active.id != DUDUNSPARCE:
                     other_pokemon += 1
+                for p in my_state.bench:
+                    if p and p.id != DUDUNSPARCE:
+                        other_pokemon += 1
 
                 hand_size = len(my_state.hand)
                 op_hp = _hp_remaining(op_active) if op_active else 999
-                dudun_safe = other_pokemon > 0 and my_state.deckCount > 4
                 
-                if should_draw_before_attack(hand_size, op_hp, True, my_state.deckCount):
-                    score = 15000.0  # Drawing will unlock a KO
-                elif is_lethal:
-                    score = -9999.0  # Already lethal — don't reduce hand
-                elif dudun_safe:
-                    score = 15000.0  # Always draw when safe
-                else:
+                if other_pokemon == 0 or my_state.deckCount <= 4:
                     score = -9999.0
+                elif should_draw_before_attack(hand_size, op_hp, True, my_state.deckCount):
+                    score = 15000.0  # Drawing will unlock a KO
+                else:
+                    score = 15000.0  # Always draw when safe! (Net +3 cards)
             elif card and card.id in (KADABRA, ALAKAZAM):
                 # Psychic Draw on evolve — handled separately
                 score = 12000.0
@@ -396,13 +397,24 @@ def handle_main(obs, options, min_count, max_count):
 
                 # ── Trainer cards ────────────────────────────────────────────
                 else:
-                    # STOP playing cards if lethal — every card = -20 damage
-                    if is_lethal and cid not in (ENH_HAMMER, BOSS_ORDERS):
-                        score = -9999.0
-                        scores.append(score)
-                        continue
+                    # Calculate net hand size change to check if safe to play
+                    net_change = -1 # Base cost: playing the card from hand
+                    if cid in (POKE_PAD, NIGHT_STRETCH):
+                        net_change = 0
+                    elif cid in (HILDA, DAWN, LANAS_AID, RARE_CANDY):
+                        net_change = 1 # Net positive
+                    
+                    if is_lethal:
+                        my_active = next((p for p in my_state.active if p), None)
+                        if my_active and my_active.id == ALAKAZAM:
+                            current_hand_size = len(my_state.hand)
+                            if (current_hand_size + net_change) * 20 < op_hp:
+                                if cid not in (ENH_HAMMER, BOSS_ORDERS):
+                                    score = -9999.0
+                                    scores.append(score)
+                                    continue
 
-                    elif cid == ENH_HAMMER:
+                    if cid == ENH_HAMMER:
                         # Remove opponent's special energy
                         op_active_has_special = any(
                             getattr(e, 'id', 0) not in (5, 2, 1, 3, 4, 6, 7, 8, 9)
@@ -439,12 +451,12 @@ def handle_main(obs, options, min_count, max_count):
                             score = -9999.0
 
                     elif cid == DAWN:
-                        # Dawn ALWAYS plays when available — no conditions
-                        # Finds Basic + Stage 1 + Stage 2 simultaneously
-                        # We ALWAYS want Pokemon on the board regardless of hand size
-                        # More bench Pokemon = more options = better Powerful Hand setup
                         if not supporter_played:
-                            score = 8500.0   # ALWAYS play Dawn — unconditional
+                            clefairy_missing = field.get(LILLIE_CLEFAIRY_EX, 0) == 0 and hand.get(LILLIE_CLEFAIRY_EX, 0) == 0
+                            if clefairy_missing and bench_space >= 1:
+                                score = 9000.0  # Even higher — get Fairy Zone online ASAP
+                            else:
+                                score = 8500.0   # ALWAYS play Dawn — unconditional
                         else:
                             score = -9999.0
 
@@ -554,6 +566,24 @@ def handle_main(obs, options, min_count, max_count):
                         else:
                             score = 2500.0
 
+                    elif cid == LILLIE_CLEFAIRY_EX:
+                        # Only bench if facing Dragons
+                        op_has_dragon = False
+                        if op_active and getattr(op_active, 'pokemonType', -1) == 10:  # 10 is Dragon
+                            op_has_dragon = True
+                        for p in op_bench:
+                            if getattr(p, 'pokemonType', -1) == 10:
+                                op_has_dragon = True
+                                
+                        # Or if Dragapult is in the discard
+                        if discard.get(121, 0) > 0 or any(p.id == 121 for p in (op_bench + [op_active]) if p):
+                            op_has_dragon = True
+                            
+                        if op_has_dragon:
+                            score = 9999.0
+                        else:
+                            score = -9999.0  # Dead card in non-Dragon matchups
+
                     else:
                         score = 1000.0
 
@@ -601,7 +631,15 @@ def handle_main(obs, options, min_count, max_count):
 
         # ── RETREAT ─────────────────────────────────────────────────────────
         elif o.type == OptionType.RETREAT:
-            if active and active.id not in (ALAKAZAM, ALAKAZAM_TWM):
+            opponent_is_fighting = any(
+                EnergyType.FIGHTING in getattr(p, 'energies', [])
+                for p in [op_active] + list(op_bench)
+                if p is not None
+            )
+            
+            if active and active.id in (ALAKAZAM, ALAKAZAM_TWM) and opponent_is_fighting:
+                score = -9999.0
+            elif active and active.id not in (ALAKAZAM, ALAKAZAM_TWM):
                 # Get Alakazam to active
                 alakazam_ready = any(
                     p and p.id == ALAKAZAM and _energy_count(p) >= 1
@@ -668,16 +706,33 @@ def handle_activate(obs, options, min_count, max_count):
 def handle_setup_active(obs, options, min_count, max_count):
     """Start with Abra as active — it's our main evolution target."""
     my_idx = obs.current.yourIndex
+    op_idx = 1 - my_idx
+    op_state = obs.current.players[op_idx]
+    
+    op_active = next((p for p in op_state.active if p), None)
+    op_bench = [p for p in op_state.bench if p]
+    
+    op_is_fighting = False
+    for p in [op_active] + op_bench:
+        if p and (getattr(p, 'pokemonType', -1) == 6 or p.id in (678, 674)):
+            op_is_fighting = True
+
     scores = []
     for o in options:
         card = _get_card(obs, AreaType.HAND, o.index, my_idx)
         if not card:
             scores.append(0.0)
             continue
-        if card.id == ABRA:         scores.append(100.0)
-        elif card.id == DUNSPARCE:  scores.append(60.0)
-        elif card.id == DUDUNSPARCE: scores.append(40.0)
-        else:                        scores.append(10.0)
+        if card.id == ABRA:
+            scores.append(100.0 if not op_is_fighting else 50.0)
+        elif card.id == ALAKAZAM:
+            scores.append(80.0 if op_is_fighting else 10.0)
+        elif card.id == DUNSPARCE:  
+            scores.append(60.0)
+        elif card.id == DUDUNSPARCE: 
+            scores.append(40.0)
+        else:                        
+            scores.append(10.0)
     return _pick_best(scores, min_count, max_count)
 
 
@@ -772,7 +827,7 @@ def handle_to_hand(obs, options, min_count, max_count):
         elif cid == ABRA:
             score = 7000.0 if alakazam_in_field < 3 else 1000.0
         elif cid == DUDUNSPARCE:
-            score = 6000.0 if field[DUDUNSPARCE] < 1 else 2000.0
+            score = 9500.0 if field[DUDUNSPARCE] < 3 else 2000.0
         elif cid == DUNSPARCE:
             score = 5000.0 if field[DUNSPARCE] < 3 else 500.0
         elif cid == RARE_CANDY:
@@ -849,6 +904,16 @@ def handle_to_active(obs, options, min_count, max_count):
     """Send up Alakazam with energy first. Never send up Dunsparce."""
     state  = obs.current
     my_idx = state.yourIndex
+    op_idx = 1 - my_idx
+    op_state = state.players[op_idx]
+
+    op_active = next((p for p in op_state.active if p), None)
+    op_bench = [p for p in op_state.bench if p]
+    
+    op_is_fighting = False
+    for p in [op_active] + op_bench:
+        if p and (getattr(p, 'pokemonType', -1) == 6 or p.id in (678, 674)):
+            op_is_fighting = True
 
     scores = []
     for o in options:
@@ -860,20 +925,33 @@ def handle_to_active(obs, options, min_count, max_count):
         energy = _energy_count(poke)
         hp_left = _hp_remaining(poke)
 
-        if poke.id == ALAKAZAM:
-            score = 10000.0 + energy * 500  # Always prefer Alakazam
-        elif poke.id == ALAKAZAM_TWM:
-            score = 8000.0 + energy * 300
-        elif poke.id == KADABRA:
-            score = 4000.0 + energy * 100
-        elif poke.id == ABRA:
-            score = 2000.0
-        elif poke.id == DUDUNSPARCE:
-            score = 1000.0  # Can use Run Away Draw to pivot back
-        elif poke.id == DUNSPARCE:
-            score = 500.0
+        if op_is_fighting:
+            # Send up Alakazam to tank against Fighting due to Resistance
+            if poke.id == ALAKAZAM:
+                score = 15000.0 + energy * 500
+            elif poke.id == ALAKAZAM_TWM:
+                score = 14000.0 + energy * 300
+            elif poke.id == ABRA:
+                score = 2000.0
+            elif poke.id == KADABRA:
+                score = 1000.0
+            else:
+                score = 300.0
         else:
-            score = 300.0
+            if poke.id == ALAKAZAM:
+                score = 10000.0 + energy * 500  # Always prefer Alakazam
+            elif poke.id == ALAKAZAM_TWM:
+                score = 8000.0 + energy * 300
+            elif poke.id == KADABRA:
+                score = 4000.0 + energy * 100
+            elif poke.id == ABRA:
+                score = 2000.0
+            elif poke.id == DUDUNSPARCE:
+                score = 1000.0  # Can use Run Away Draw to pivot back
+            elif poke.id == DUNSPARCE:
+                score = 500.0
+            else:
+                score = 300.0
 
         if hp_left <= 30:
             score -= 2000.0
@@ -950,17 +1028,32 @@ def handle_attach_to(obs, options, min_count, max_count):
         score = 0.0
 
         if energy_id == ENRICHING_ENERGY:
-            # Enriching Energy ONLY goes to Dunsparce/Dudunsparce
-            # They draw 4 cards on attachment AND recycle when Run Away Draw fires
-            if tid == DUNSPARCE:
+            my_state = state.players[my_idx]
+            if my_state.deckCount <= 4:
+                score = -9999.0  # NEVER attach when deck is critically low
+            elif tid == DUNSPARCE:
                 score = 9500.0   # Best target — recycles + draws 4
             elif tid == DUDUNSPARCE:
                 score = 9000.0   # Also recycles + draws 4
             else:
                 score = -9999.0  # NEVER attach Enriching to Alakazam line
 
-        elif energy_id in (PSYCHIC_ENERGY, TELEPATH_ENERGY):
-            # Psychic energy ONLY goes to Alakazam line
+        elif energy_id == TELEPATH_ENERGY:
+            # Telepathic Energy triggers on Abra to bench 2 more Abras!
+            if tid == ABRA:
+                if _energy_count(poke) == 0:
+                    score = 9500.0  # Best target — trigger ability
+                else:
+                    score = 8000.0
+            elif tid == KADABRA:
+                score = 7000.0
+            elif tid == ALAKAZAM:
+                score = 5000.0
+            else:
+                score = -9999.0
+
+        elif energy_id == PSYCHIC_ENERGY:
+            # Basic Psychic goes to Alakazam first for attack cost
             if tid == DUNSPARCE or tid == DUDUNSPARCE:
                 score = -9999.0  # NEVER attach to Dunsparce line
             elif tid == ALAKAZAM:
