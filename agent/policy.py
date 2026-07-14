@@ -329,7 +329,7 @@ def handle_main(obs, options, min_count, max_count):
                             o.index, my_idx)
             if card and card.id == DUDUNSPARCE:
                 other_pokemon = 0
-                if my_active is not None and my_active.id != DUDUNSPARCE:
+                if active is not None and active.id != DUDUNSPARCE:
                     other_pokemon += 1
                 for p in my_state.bench:
                     if p and p.id != DUDUNSPARCE:
@@ -368,6 +368,12 @@ def handle_main(obs, options, min_count, max_count):
                     score = 9000.0  # Then evolve to Alakazam for draw 3
                 elif card.id == ALAKAZAM_TWM:
                     score = 7000.0 if mist_on_opponent else 4000.0
+                elif card.id == DUDUNSPARCE:
+                    my_active = next((p for p in my_state.active if p), None)
+                    if my_active and my_active.id == DUNSPARCE:
+                        score = 15000.0
+                    else:
+                        score = 13000.0
                 else:
                     score = 3000.0
 
@@ -723,12 +729,12 @@ def handle_setup_active(obs, options, min_count, max_count):
         if not card:
             scores.append(0.0)
             continue
-        if card.id == ABRA:
-            scores.append(100.0 if not op_is_fighting else 50.0)
+        if card.id == DUNSPARCE:
+            scores.append(100.0)
+        elif card.id == ABRA:
+            scores.append(50.0)
         elif card.id == ALAKAZAM:
             scores.append(80.0 if op_is_fighting else 10.0)
-        elif card.id == DUNSPARCE:  
-            scores.append(60.0)
         elif card.id == DUDUNSPARCE: 
             scores.append(40.0)
         else:                        
@@ -1039,31 +1045,28 @@ def handle_attach_to(obs, options, min_count, max_count):
                 score = -9999.0  # NEVER attach Enriching to Alakazam line
 
         elif energy_id == TELEPATH_ENERGY:
-            # Telepathic Energy triggers on Abra to bench 2 more Abras!
-            if tid == ABRA:
+            if tid in (ALAKAZAM, KADABRA, ABRA):
                 if _energy_count(poke) == 0:
                     score = 9500.0  # Best target — trigger ability
                 else:
                     score = 8000.0
-            elif tid == KADABRA:
-                score = 7000.0
-            elif tid == ALAKAZAM:
-                score = 5000.0
             else:
                 score = -9999.0
 
         elif energy_id == PSYCHIC_ENERGY:
-            # Basic Psychic goes to Alakazam first for attack cost
             if tid == DUNSPARCE or tid == DUDUNSPARCE:
                 score = -9999.0  # NEVER attach to Dunsparce line
             elif tid == ALAKAZAM:
-                score = 9000.0   # Primary attacker — always first
+                if _energy_count(poke) >= 1:
+                    score = 5000.0  # Cap at 1 (redirect to Kadabra)
+                else:
+                    score = 9000.0
             elif tid == KADABRA:
-                score = 7000.0   # Will evolve to Alakazam soon
+                score = 7000.0
             elif tid == ABRA:
-                score = 4000.0   # Pre-load for evolution chain
+                score = 4000.0
             else:
-                score = -9999.0  # No other targets
+                score = -9999.0
         else:
             score = -9999.0
             
