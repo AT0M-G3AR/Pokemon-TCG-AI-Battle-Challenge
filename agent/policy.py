@@ -291,6 +291,15 @@ def handle_main(obs, options, min_count, max_count):
     hand_size   = len(my_state.hand)
     post_disruption = hand_size <= 4
 
+    # ── EARLY GAME / BENCH MATURITY SIGNAL ──────────────────────────────────
+    # bench_filled counts non-empty bench slots; low bench_filled + basics
+    # still in hand means board development should trump everything else,
+    # including supporters. This is the missing signal that was causing
+    # Dunsparce/Abra to sit in hand while Dawn/Hilda/Poffin got played instead.
+    bench_filled = sum(1 for p in my_state.bench if p is not None)
+    basics_in_hand = hand[ABRA] + hand[DUNSPARCE]
+    early_game_undeveloped = bench_filled < 4 and basics_in_hand > 0
+
     # ── LETHAL CHECK ────────────────────────────────────────────────────────
     # If we can KO opponent's active right now, ONLY score the attack
     is_lethal = _lethal_now(state, my_idx, op_idx)
@@ -403,6 +412,12 @@ def handle_main(obs, options, min_count, max_count):
                         score = 5500.0 if dunsparce_field < 3 and bench_space > 0 else -9999.0
                     else:
                         score = 2000.0 if bench_space > 0 else -9999.0
+
+                    # Early game: board development beats hand-holding.
+                    # Push basics above supporters/trainers until bench is
+                    # reasonably built out (fixes Dunsparce/Abra hoarding bug).
+                    if early_game_undeveloped and score > -9000.0:
+                        score += 4000.0
 
                 # ── Trainer cards ────────────────────────────────────────────
                 else:
