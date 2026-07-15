@@ -289,6 +289,7 @@ def handle_main(obs, options, min_count, max_count):
 
     bench_space = 5 - sum(1 for p in my_state.bench if p is not None)
     hand_size   = len(my_state.hand)
+    post_disruption = hand_size <= 4
 
     # ── LETHAL CHECK ────────────────────────────────────────────────────────
     # If we can KO opponent's active right now, ONLY score the attack
@@ -309,7 +310,9 @@ def handle_main(obs, options, min_count, max_count):
 
         # ── ATTACK ──────────────────────────────────────────────────────────
         if o.type == OptionType.ATTACK:
-            if active and active.id == ALAKAZAM:
+            if post_disruption and hand_size < 8 and not is_lethal:
+                score = 2000.0  # Build hand first
+            elif active and active.id == ALAKAZAM:
                 hand_size = len(my_state.hand)
                 op_hp = _hp_remaining(op_active) if op_active else 999
                 score = evaluate_attack(
@@ -602,6 +605,8 @@ def handle_main(obs, options, min_count, max_count):
                     if card.id == ENRICHING_ENERGY:
                         if my_state.deckCount <= 4:
                             score = -9999.0  # Prevents drawing last 4 cards and instantly losing
+                        elif post_disruption and target.id in (DUNSPARCE, DUDUNSPARCE):
+                            score = 12000.0  # Highest priority when disrupted
                         elif target.id == DUNSPARCE:
                             score = 9500.0
                         elif target.id == DUDUNSPARCE:
@@ -625,7 +630,7 @@ def handle_main(obs, options, min_count, max_count):
                             elif target.id == ALAKAZAM_TWM:
                                 score = 8000.0
                             elif target.id == KADABRA:
-                                score = 5000.0
+                                score = 8000.0  # Pre-load backup attacker
                             elif target.id == ABRA:
                                 score = 3000.0
                             else:
