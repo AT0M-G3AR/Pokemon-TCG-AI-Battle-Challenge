@@ -324,14 +324,19 @@ def handle_main(obs, options, min_count, max_count):
             elif active and active.id == ALAKAZAM:
                 hand_size = len(my_state.hand)
                 op_hp = _hp_remaining(op_active) if op_active else 999
-                score = evaluate_attack(
-                    obs,
-                    o.index,
-                    op_hp,
-                    hand_size,
-                    my_prizes,
-                    len(op_state.prize)
-                )
+                try:
+                    score = evaluate_attack(
+                        obs,
+                        o.index,
+                        op_hp,
+                        hand_size,
+                        my_prizes,
+                        len(op_state.prize)
+                    )
+                    print(f"[attack-debug] hand={hand_size} op_hp={op_hp} score={score}", flush=True)
+                except Exception as e:
+                    print(f"[attack-debug] EXCEPTION: {e}", flush=True)
+                    raise
             else:
                 score = 3000.0
 
@@ -352,10 +357,30 @@ def handle_main(obs, options, min_count, max_count):
                 
                 if other_pokemon == 0 or my_state.deckCount <= 4:
                     score = -9999.0
-                elif should_draw_before_attack(hand_size, op_hp, True, my_state.deckCount):
-                    score = 15000.0  # Drawing will unlock a KO
+                elif is_lethal:
+                    score = -9999.0
                 else:
-                    score = 15000.0  # Always draw when safe! (Net +3 cards)
+                    alakazam_ready = any(
+                        p and p.id == ALAKAZAM and _energy_count(p) >= 1
+                        for p in ([active] if active else []) + list(my_state.bench)
+                        if p
+                    )
+                    backfill_available = sum(
+                        1 for p in my_state.bench
+                        if p and p.id in (DUNSPARCE, DUDUNSPARCE)
+                    ) >= 1
+                    op_has_fighting = any(
+                        getattr(p, 'pokemonType', -1) == 6 or p.id in (678, 674)
+                        for p in ([op_active] if op_active else []) + list(op_bench)
+                        if p
+                    )
+
+                    if alakazam_ready or backfill_available:
+                        score = 15000.0  # keep existing high priority value used here
+                    elif op_has_fighting:
+                        score = 12000.0
+                    else:
+                        score = -9999.0  # suppress — hold as tank instead
             elif card and card.id in (KADABRA, ALAKAZAM):
                 # Psychic Draw on evolve — handled separately
                 score = 12000.0
@@ -961,6 +986,8 @@ def handle_to_active(obs, options, min_count, max_count):
                 score = 2000.0
             elif poke.id == KADABRA:
                 score = 1000.0
+            elif poke.id in (DUNSPARCE, DUDUNSPARCE):
+                score = 100.0  # Fighting-weak, explicitly deprioritize as a tank
             else:
                 score = 300.0
         else:
@@ -968,13 +995,13 @@ def handle_to_active(obs, options, min_count, max_count):
                 score = 10000.0 + energy * 500  # Always prefer Alakazam
             elif poke.id == ALAKAZAM_TWM:
                 score = 8000.0 + energy * 300
-            elif poke.id == KADABRA:
-                score = 4000.0 + energy * 100
-            elif poke.id == ABRA:
-                score = 2000.0
             elif poke.id == DUDUNSPARCE:
-                score = 1000.0  # Can use Run Away Draw to pivot back
+                score = 2500.0  # Better pivot (Ability)
             elif poke.id == DUNSPARCE:
+                score = 2000.0  # Better pivot (0 Retreat)
+            elif poke.id == KADABRA:
+                score = 1000.0 + energy * 100
+            elif poke.id == ABRA:
                 score = 500.0
             else:
                 score = 300.0
