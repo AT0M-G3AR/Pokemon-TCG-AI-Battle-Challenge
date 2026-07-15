@@ -560,7 +560,7 @@ def handle_main(obs, options, min_count, max_count):
 
                     elif cid == XEROSIC:
                         if not supporter_played:
-                            opp_hand = len(op_state.hand)
+                            opp_hand = op_state.handCount
                             if opp_hand > 3:
                                 score = 8000.0  # Disrupt opponent's large hand
                             else:
