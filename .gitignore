@@ -25,6 +25,38 @@ result.html
 # Observation dumps
 obs_dump.json
 
+# Kaggle episode replay JSONs (data files, not source)
+[0-9]*.json
+
+# Stdout capture files from debug runs
+out_*.txt
+sim_output.txt
+
+# One-off investigation / debug scripts in tools/
+tools/check_*.py
+tools/dump_*.py
+tools/find_*.py
+tools/exact_*.py
+tools/raw_*.py
+tools/trace_*.py
+tools/inspect_*.py
+tools/count_*.py
+tools/parse_*.py
+tools/print_*.py
+tools/verify_*.py
+tools/wrap_*.py
+tools/generate_trace_*.py
+tools/replay_test.py
+tools/run_batch.py
+tools/test_attack_bug.py
+tools/test_evolve_mock.py
+tools/test_status_injection.py
+tools/test_v328_regression.py
+tools/test_v329_replay_trace.py
+
+# One-off root-level scripts
+update_deck.py
+
 # Environment
 .env
 *.env
