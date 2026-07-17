@@ -16,3 +16,16 @@
 
 ## Our Counter-Strategy
 *[To be filled in after deck selection]*
+
+
+## Cards Verified NOT in Competition Pool
+- Beedrill ex, Weedle, Kakuna — not in EN_Card_Data.csv
+- Growing Grass Energy — not found in pool
+- Cannot replicate TCG Live Beedrill ex deck in this simulator
+
+## Cards Confirmed IN Pool (from TCG Live research)
+- Dudunsparce (66) — likely draw engine in top decks
+- Teal Mask Ogerpon ex (96) — Grass energy acceleration
+- Grand Tree (1249) — instant Grass evolution stadium
+- Area Zero Underdepths (1250) — stadium tech
+- Forest of Vitality (1261) — Grass stadium

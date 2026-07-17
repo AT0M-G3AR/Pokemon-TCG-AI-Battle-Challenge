@@ -259,7 +259,15 @@ def select_action(obs: Observation) -> list[int]:
         handler = handlers.get(context, handle_generic)
         return handler(obs, options, min_count, max_count)
     except Exception as e:
-        print(f"[policy error] ctx={context} err={e}")
+        try:
+            import traceback
+            with open("/tmp/policy_error.log", "a") as f:
+                f.write(f"--- [POLICY ERROR] Context: {context} ---\n")
+                f.write(traceback.format_exc())
+                f.write("\n")
+        except:
+            pass
+        print(f"[policy error] ctx={context} err={e}", flush=True)
         return _safe_fallback(options, min_count)
 
 
@@ -313,6 +321,36 @@ def handle_main(obs, options, min_count, max_count):
     alakazam_line_field = (field[ABRA] + field[KADABRA] +
                            field[ALAKAZAM] + field[ALAKAZAM_TWM])
     dunsparce_field = field[DUNSPARCE] + field[DUDUNSPARCE]
+
+    alakazam_line_count = (
+        field[ABRA] + field[KADABRA] + field[ALAKAZAM] + field[ALAKAZAM_TWM]
+        + hand[ALAKAZAM]
+    )
+    board_is_saturated = (
+        active is not None and active.id == ALAKAZAM and _energy_count(active) >= 1
+        and alakazam_line_count >= 2
+        and not is_lethal
+    )
+
+    # Bricked-hand detection: no Alakazam-line pieces anywhere to progress the board,
+    # and no other draw/search engine in hand. Run Away Draw is the only lifeline.
+    alakazam_line_in_hand = hand[ABRA] + hand[KADABRA] + hand[ALAKAZAM]
+    has_other_draw_engine_in_hand = any(
+        hand.get(c, 0) > 0 for c in (POFFIN, POKE_PAD, HILDA, DAWN)
+    )
+    hand_is_bricked = (
+        alakazam_line_field == 0
+        and alakazam_line_in_hand == 0
+        and not has_other_draw_engine_in_hand
+    )
+
+    my_asleep = getattr(my_state, 'asleep', False)
+    my_paralyzed = getattr(my_state, 'paralyzed', False)
+    my_confused = getattr(my_state, 'confused', False)
+    my_poisoned = getattr(my_state, 'poisoned', False)
+    my_burned = getattr(my_state, 'burned', False)
+    my_status_locked = my_asleep or my_paralyzed  # cannot retreat or use abilities
+    my_status_curable_by_retreat = my_confused or my_poisoned or my_burned
 
     scores = []
     for o in options:
@@ -375,10 +413,14 @@ def handle_main(obs, options, min_count, max_count):
                         if p
                     )
 
-                    if alakazam_ready or backfill_available:
+                    if board_is_saturated and backfill_available:
+                        score = -9999.0  # backfill was the only justification; already redundant
+                    elif alakazam_ready or backfill_available:
                         score = 15000.0  # keep existing high priority value used here
                     elif op_has_fighting:
                         score = 12000.0
+                    elif hand_is_bricked:
+                        score = 13000.0  # emergency draw — bricked hand, no other way forward
                     else:
                         score = -9999.0  # suppress — hold as tank instead
             elif card and card.id in (KADABRA, ALAKAZAM):
@@ -696,7 +738,12 @@ def handle_main(obs, options, min_count, max_count):
                     p and p.id == ALAKAZAM and _energy_count(p) >= 1
                     for p in my_state.bench if p
                 )
-                score = 4000.0 if alakazam_ready else 500.0
+                base_score = 4000.0 if alakazam_ready else 500.0
+
+                if my_status_curable_by_retreat:
+                    base_score += 3000.0
+
+                score = base_score
             else:
                 score = -9999.0  # Never retreat Alakazam
 
@@ -872,7 +919,8 @@ def handle_to_hand(obs, options, min_count, max_count):
         if cid == ALAKAZAM:
             score = 9000.0 if alakazam_in_field >= 1 else 5000.0
         elif cid == SHAYMIN:
-            score = 8500.0 if not any(p and p.id == SHAYMIN for p in my_state.bench) else 1000.0
+            already_has_shaymin = any(p and p.id == SHAYMIN for p in state.players[my_idx].bench)
+            score = 8500.0 if not already_has_shaymin else 1000.0
         elif cid == KADABRA:
             score = 8000.0 if field[ABRA] >= 1 else 3000.0
         elif cid == ABRA:
@@ -1094,6 +1142,7 @@ def handle_attach_to(obs, options, min_count, max_count):
         elif energy_id == TELEPATH_ENERGY:
             if tid in (ALAKAZAM, KADABRA, ABRA):
                 if _energy_count(poke) == 0:
+                    
                     score = 9500.0  # Best target — trigger ability
                 else:
                     score = 8000.0
@@ -1127,9 +1176,15 @@ def handle_attach_to(obs, options, min_count, max_count):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def handle_evolve(obs, options, min_count, max_count):
-    """Evolve the Pokémon with most energy attached — can attack soonest."""
     state  = obs.current
     my_idx = state.yourIndex
+    my_state = state.players[my_idx]
+
+    my_status_afflicted = (
+        getattr(my_state, 'asleep', False) or getattr(my_state, 'paralyzed', False)
+        or getattr(my_state, 'confused', False) or getattr(my_state, 'poisoned', False)
+        or getattr(my_state, 'burned', False)
+    )
 
     scores = []
     for o in options:
@@ -1142,6 +1197,10 @@ def handle_evolve(obs, options, min_count, max_count):
         energy  = _energy_count(poke)
         is_active = (area == AreaType.ACTIVE)
         score = energy * 500.0 + (300.0 if is_active else 0.0)
+
+        if is_active and my_status_afflicted:
+            score += 5000.0
+
         scores.append(score)
 
     return _pick_best(scores, min_count, max_count)
