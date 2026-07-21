@@ -235,6 +235,17 @@ def evaluate_attack(obs,
     """
     current_damage = calculate_powerful_hand_damage(hand_size)
 
+    # v3.35 Fix: Mist Energy nullifies Powerful Hand (100% effect-based damage)
+    op_idx = 1 - obs.current.yourIndex
+    op_state = obs.current.players[op_idx]
+    op_active = next((p for p in op_state.active if p), None)
+    mist_on_opponent = any(
+        getattr(e, 'id', 0) == 11 for e in (getattr(op_active, 'energyCards', []) if op_active else [])
+    )
+    if mist_on_opponent:
+        print(f"EVALUATE_ATTACK WARNING: Target is protected by Mist Energy. Powerful Hand deals 0 damage.")
+        current_damage = 0
+
     # TIER 1: Game-winning KO
     if current_damage >= opponent_hp and my_prizes_left <= opponent_prizes_left:
         return 20000.0  # Attack for the win

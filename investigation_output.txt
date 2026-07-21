@@ -1,0 +1,851 @@
+
+================ STEP 13 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 1 Max: 1
+Available Options:
+  0: type=3 idx=4 
+My Board:
+
+================ STEP 14 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=8 idx=2 card=Telepath Psychic Energy (id=19)
+  1: type=7 idx=3 card=Dawn (id=1231)
+  2: type=7 idx=4 card=Dawn (id=1231)
+  3: type=7 idx=5 card=Dawn (id=1231)
+  4: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+
+================ STEP 15 Player 1 (yourIndex=1) ================
+Action taken: [1]
+Context: 7 Max: 1
+Chosen Action: 1 -> type=3, index=14
+Available Options:
+  0: type=3 idx=12 
+  1: type=3 idx=14 
+  2: type=3 idx=20 
+  3: type=3 idx=25 
+  4: type=3 idx=33 
+  5: type=3 idx=35 
+  6: type=3 idx=36 
+  7: type=3 idx=37 
+My Board:
+  Active 0: Dunsparce (hp=60)
+
+================ STEP 16 Player 1 (yourIndex=1) ================
+Action taken: [5]
+Context: 7 Max: 1
+Chosen Action: 5 -> type=3, index=43
+Available Options:
+  0: type=3 idx=5 
+  1: type=3 idx=7 
+  2: type=3 idx=29 
+  3: type=3 idx=34 
+  4: type=3 idx=39 
+  5: type=3 idx=43 
+My Board:
+  Active 0: Dunsparce (hp=60)
+
+================ STEP 17 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 7 Max: 1
+Chosen Action: 0 -> type=3, index=1
+Available Options:
+  0: type=3 idx=1 
+  1: type=3 idx=41 
+My Board:
+  Active 0: Dunsparce (hp=60)
+
+================ STEP 18 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 0 Max: 1
+Chosen Action: 0 -> type=8, index=2
+  Attached from hand: Telepath Psychic Energy (id=19)
+  Target: area=4, idx=0
+Available Options:
+  0: type=8 idx=2 card=Telepath Psychic Energy (id=19)
+  1: type=7 idx=6 card=Shaymin (id=343)
+  2: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+
+================ STEP 19 Player 1 (yourIndex=1) ================
+Action taken: [1]
+Context: 0 Max: 1
+Chosen Action: 1 -> type=8, index=2
+  Attached from hand: Telepath Psychic Energy (id=19)
+  Target: area=5, idx=0
+Available Options:
+  0: type=8 idx=2 card=Telepath Psychic Energy (id=19)
+  1: type=8 idx=2 card=Telepath Psychic Energy (id=19)
+  2: type=12 idx=None 
+  3: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 20 Player 1 (yourIndex=1) ================
+Action taken: [1]
+Context: 0 Max: 1
+Chosen Action: 1 -> type=14, index=None
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 21 Player 1 (yourIndex=1) ================
+Action taken: [1]
+Context: 0 Max: 1
+Chosen Action: 1 -> type=14, index=None
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 22 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 23 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 24 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 25 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 26 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 27 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 28 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 29 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 30 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 31 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 32 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 33 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=7 idx=2 card=Dawn (id=1231)
+  1: type=7 idx=3 card=Dawn (id=1231)
+  2: type=9 idx=5 card=Dudunsparce (id=66)
+  3: type=12 idx=None 
+  4: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=10)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 34 Player 1 (yourIndex=1) ================
+Action taken: [2]
+Context: 0 Max: 1
+Chosen Action: 2 -> type=10, index=0
+Available Options:
+  0: type=7 idx=2 card=Dawn (id=1231)
+  1: type=7 idx=3 card=Dawn (id=1231)
+  2: type=10 idx=0 
+  3: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 35 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 7 Max: 1
+Chosen Action: 0 -> type=3, index=2
+Available Options:
+  0: type=3 idx=2 
+  1: type=3 idx=3 
+  2: type=3 idx=4 
+  3: type=3 idx=9 
+  4: type=3 idx=14 
+  5: type=3 idx=25 
+  6: type=3 idx=36 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 36 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 7 Max: 1
+Chosen Action: 0 -> type=3, index=0
+Available Options:
+  0: type=3 idx=0 
+  1: type=3 idx=12 
+  2: type=3 idx=25 
+  3: type=3 idx=36 
+  4: type=3 idx=39 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 37 Player 1 (yourIndex=1) ================
+Action taken: [2]
+Context: 7 Max: 1
+Action 2 is out of bounds for options len 1
+Available Options:
+  0: type=3 idx=7 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 38 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 0 Max: 1
+Chosen Action: 0 -> type=7, index=6
+  Played from hand: Abra (id=741)
+Available Options:
+  0: type=7 idx=6 card=Abra (id=741)
+  1: type=10 idx=0 
+  2: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+
+================ STEP 39 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 0 Max: 1
+Chosen Action: 0 -> type=10, index=0
+Available Options:
+  0: type=10 idx=0 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Abra (hp=50)
+
+================ STEP 40 Player 1 (yourIndex=1) ================
+Action taken: [1]
+Context: 0 Max: 1
+Chosen Action: 1 -> type=14, index=None
+Available Options:
+  0: type=10 idx=0 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Abra (hp=50)
+
+================ STEP 41 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=10 idx=0 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Abra (hp=50)
+
+================ STEP 42 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=10 idx=0 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Abra (hp=50)
+
+================ STEP 43 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=10 idx=0 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Abra (hp=50)
+
+================ STEP 44 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=10 idx=0 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Abra (hp=50)
+
+================ STEP 45 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=10 idx=0 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Abra (hp=50)
+
+================ STEP 46 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=9 idx=1 card=Kadabra (id=742)
+  1: type=7 idx=2 card=Dawn (id=1231)
+  2: type=7 idx=8 card=Buddy-Buddy Poffin (id=1086)
+  3: type=10 idx=0 
+  4: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=40)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Abra (hp=50)
+
+================ STEP 47 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 43 Max: 1
+Chosen Action: 0 -> type=1, index=None
+Available Options:
+  0: type=1 idx=None 
+  1: type=2 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=40)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+
+================ STEP 48 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 0 Max: 1
+Chosen Action: 0 -> type=7, index=1
+  Played from hand: Dawn (id=1231)
+Available Options:
+  0: type=7 idx=1 card=Dawn (id=1231)
+  1: type=7 idx=7 card=Buddy-Buddy Poffin (id=1086)
+  2: type=7 idx=9 card=Abra (id=741)
+  3: type=10 idx=0 
+  4: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=40)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+
+================ STEP 49 Player 1 (yourIndex=1) ================
+Action taken: [2]
+Context: 0 Max: 1
+Chosen Action: 2 -> type=10, index=0
+Available Options:
+  0: type=7 idx=1 card=Dawn (id=1231)
+  1: type=7 idx=7 card=Buddy-Buddy Poffin (id=1086)
+  2: type=10 idx=0 
+  3: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=40)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+
+================ STEP 50 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 7 Max: 1
+Chosen Action: 0 -> type=3, index=1
+Available Options:
+  0: type=3 idx=1 
+  1: type=3 idx=8 
+  2: type=3 idx=9 
+  3: type=3 idx=13 
+  4: type=3 idx=19 
+My Board:
+  Active 0: Dudunsparce (hp=40)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+
+================ STEP 51 Player 1 (yourIndex=1) ================
+Action taken: [3]
+Context: 7 Max: 1
+Action 3 is out of bounds for options len 3
+Available Options:
+  0: type=3 idx=22 
+  1: type=3 idx=25 
+  2: type=3 idx=33 
+My Board:
+  Active 0: Dudunsparce (hp=40)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+
+================ STEP 52 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 0 Max: 1
+Chosen Action: 0 -> type=7, index=6
+  Played from hand: Buddy-Buddy Poffin (id=1086)
+Available Options:
+  0: type=7 idx=6 card=Buddy-Buddy Poffin (id=1086)
+  1: type=7 idx=8 card=Abra (id=741)
+  2: type=10 idx=0 
+  3: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=40)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+
+================ STEP 53 Player 1 (yourIndex=1) ================
+Action taken: [1]
+Context: 0 Max: 1
+Chosen Action: 1 -> type=10, index=0
+Available Options:
+  0: type=7 idx=6 card=Buddy-Buddy Poffin (id=1086)
+  1: type=10 idx=0 
+  2: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=40)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+
+================ STEP 54 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 5 Max: 1
+Chosen Action: 0 -> type=3, index=1
+Available Options:
+  0: type=3 idx=1 
+  1: type=3 idx=2 
+  2: type=3 idx=10 
+My Board:
+  Active 0: Dudunsparce (hp=40)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+
+================ STEP 55 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 0 Max: 1
+Chosen Action: 0 -> type=10, index=0
+Available Options:
+  0: type=10 idx=0 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=40)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+  Bench 4: Dunsparce (hp=60)
+
+================ STEP 56 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 4 Max: 1
+Chosen Action: 0 -> type=3, index=0
+Available Options:
+  0: type=3 idx=0 
+  1: type=3 idx=1 
+  2: type=3 idx=2 
+  3: type=3 idx=3 
+  4: type=3 idx=4 
+My Board:
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+  Bench 4: Dunsparce (hp=60)
+
+================ STEP 57 Player 1 (yourIndex=1) ================
+Action taken: [4]
+Context: 0 Max: 1
+Chosen Action: 4 -> type=8, index=9
+  Attached from hand: Basic {P} Energy (id=5)
+  Target: area=5, idx=2
+Available Options:
+  0: type=7 idx=8 card=Lillie’s Clefairy ex (id=272)
+  1: type=8 idx=9 card=Basic {P} Energy (id=5)
+  2: type=8 idx=9 card=Basic {P} Energy (id=5)
+  3: type=8 idx=9 card=Basic {P} Energy (id=5)
+  4: type=8 idx=9 card=Basic {P} Energy (id=5)
+  5: type=8 idx=9 card=Basic {P} Energy (id=5)
+  6: type=12 idx=None 
+  7: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+
+================ STEP 58 Player 1 (yourIndex=1) ================
+Action taken: [3]
+Context: 0 Max: 1
+Action 3 is out of bounds for options len 3
+Available Options:
+  0: type=7 idx=8 card=Lillie’s Clefairy ex (id=272)
+  1: type=12 idx=None 
+  2: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+
+================ STEP 59 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 0 Max: 1
+Chosen Action: 0 -> type=12, index=None
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 60 Player 1 (yourIndex=1) ================
+Action taken: [1]
+Context: 0 Max: 1
+Chosen Action: 1 -> type=14, index=None
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 61 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 62 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 63 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 64 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 65 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 66 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=12 idx=None 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=60)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 67 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=9 idx=1 card=Kadabra (id=742)
+  1: type=9 idx=1 card=Kadabra (id=742)
+  2: type=9 idx=3 card=Dudunsparce (id=66)
+  3: type=8 idx=4 card=Telepath Psychic Energy (id=19)
+  4: type=8 idx=4 card=Telepath Psychic Energy (id=19)
+  5: type=8 idx=4 card=Telepath Psychic Energy (id=19)
+  6: type=8 idx=4 card=Telepath Psychic Energy (id=19)
+  7: type=8 idx=4 card=Telepath Psychic Energy (id=19)
+  8: type=8 idx=4 card=Telepath Psychic Energy (id=19)
+  9: type=12 idx=None 
+  10: type=14 idx=None 
+My Board:
+  Active 0: Dunsparce (hp=10)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 68 Player 1 (yourIndex=1) ================
+Action taken: [2]
+Context: 0 Max: 1
+Chosen Action: 2 -> type=8, index=3
+  Attached from hand: Telepath Psychic Energy (id=19)
+  Target: area=4, idx=0
+Available Options:
+  0: type=9 idx=1 card=Kadabra (id=742)
+  1: type=9 idx=1 card=Kadabra (id=742)
+  2: type=8 idx=3 card=Telepath Psychic Energy (id=19)
+  3: type=8 idx=3 card=Telepath Psychic Energy (id=19)
+  4: type=8 idx=3 card=Telepath Psychic Energy (id=19)
+  5: type=8 idx=3 card=Telepath Psychic Energy (id=19)
+  6: type=8 idx=3 card=Telepath Psychic Energy (id=19)
+  7: type=8 idx=3 card=Telepath Psychic Energy (id=19)
+  8: type=10 idx=0 
+  9: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Abra (hp=50)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 69 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 43 Max: 1
+Chosen Action: 0 -> type=1, index=None
+Available Options:
+  0: type=1 idx=None 
+  1: type=2 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Kadabra (hp=80)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 70 Player 1 (yourIndex=1) ================
+Action taken: [0]
+Context: 0 Max: 1
+Chosen Action: 0 -> type=8, index=2
+  Attached from hand: Telepath Psychic Energy (id=19)
+  Target: area=4, idx=0
+Available Options:
+  0: type=8 idx=2 card=Telepath Psychic Energy (id=19)
+  1: type=8 idx=2 card=Telepath Psychic Energy (id=19)
+  2: type=8 idx=2 card=Telepath Psychic Energy (id=19)
+  3: type=8 idx=2 card=Telepath Psychic Energy (id=19)
+  4: type=8 idx=2 card=Telepath Psychic Energy (id=19)
+  5: type=8 idx=2 card=Telepath Psychic Energy (id=19)
+  6: type=10 idx=0 
+  7: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Kadabra (hp=80)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 71 Player 1 (yourIndex=1) ================
+Action taken: [3]
+Context: 0 Max: 1
+Action 3 is out of bounds for options len 2
+Available Options:
+  0: type=10 idx=0 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Kadabra (hp=80)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 72 Player 1 (yourIndex=1) ================
+Action taken: [1]
+Context: 0 Max: 1
+Chosen Action: 1 -> type=14, index=None
+Available Options:
+  0: type=10 idx=0 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Kadabra (hp=80)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 73 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=10 idx=0 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Kadabra (hp=80)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 74 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=10 idx=0 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=90)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Kadabra (hp=80)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)
+
+================ STEP 75 Player 1 (yourIndex=1) ================
+Action taken: []
+Context: 0 Max: 1
+Available Options:
+  0: type=10 idx=0 
+  1: type=14 idx=None 
+My Board:
+  Active 0: Dudunsparce (hp=40)
+  Bench 0: Shaymin (hp=80)
+  Bench 1: Kadabra (hp=80)
+  Bench 2: Kadabra (hp=80)
+  Bench 3: Abra (hp=50)
+  Bench 4: Lillie’s Clefairy ex (hp=190)

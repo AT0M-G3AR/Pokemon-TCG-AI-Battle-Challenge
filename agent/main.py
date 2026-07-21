@@ -1,4 +1,16 @@
 import os
+import sys
+import inspect
+
+# Bulletproof path resolution for Kaggle's exec() environment
+# __file__ is not defined, and os.getcwd() might be the wrong directory.
+frame = inspect.currentframe()
+if frame:
+    current_file = inspect.getframeinfo(frame).filename
+    agent_dir = os.path.dirname(os.path.abspath(current_file))
+    if agent_dir not in sys.path:
+        sys.path.insert(0, agent_dir)
+
 import random
 from cg.api import Observation, to_observation_class
 from policy import select_action
@@ -7,7 +19,7 @@ from policy import select_action
 # __file__ is NOT available in Kaggle's exec() environment
 file_path = "deck.csv"
 if not os.path.exists(file_path):
-    file_path = "agent/deck.csv"
+    file_path = os.path.join(agent_dir, "deck.csv")
 if not os.path.exists(file_path):
     file_path = "/kaggle_simulations/agent/deck.csv"
 

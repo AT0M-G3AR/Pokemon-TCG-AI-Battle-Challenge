@@ -83,13 +83,21 @@ def _safe_fallback(options, min_count):
     return random.sample(list(range(len(options))), count)
 
 
-def _pick_best(scores, min_count, max_count):
+def _pick_best(scores, min_count, max_count, allow_empty=False):
     indexed = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)
     valid = [i for i, s in indexed if s > -9000]
+    
     if not valid:
+        if allow_empty and min_count == 0:
+            return []
         valid = [indexed[0][0]] if indexed else [0]
-    count = max(min_count, 1)
-    count = min(count, len(valid), max_count)
+        
+    # take as many valid options as allowed by max_count, respecting
+    # min_count as a floor
+    count = max(min_count, min(len(valid), max_count))
+    if not allow_empty:
+        count = max(count, 1)
+        
     return [i for i, _ in indexed[:count]]
 
 
@@ -117,6 +125,10 @@ def _get_card(obs, area, index, player_index):
             case AreaType.ACTIVE:  return ps.active[index]
             case AreaType.DISCARD: return ps.discard[index]
             case AreaType.PRIZE:   return ps.prize[index]
+            case AreaType.DECK:
+                if obs.select and getattr(obs.select, 'deck', None) is not None:
+                    return obs.select.deck[index]
+                return None
             case _:                return None
     except (IndexError, AttributeError):
         return None
@@ -334,13 +346,17 @@ def handle_main(obs, options, min_count, max_count):
 
     # Bricked-hand detection: no Alakazam-line pieces anywhere to progress the board,
     # and no other draw/search engine in hand. Run Away Draw is the only lifeline.
-    alakazam_line_in_hand = hand[ABRA] + hand[KADABRA] + hand[ALAKAZAM]
+    # A hand is ONLY unbricked if we actually have a playable Basic (Abra) or already have an Abra on board.
+    # Having Kadabra/Alakazam in hand is useless if we have no Abra anywhere.
+    have_usable_alakazam_line = (
+        alakazam_line_field > 0 
+        or hand[ABRA] > 0
+    )
     has_other_draw_engine_in_hand = any(
         hand.get(c, 0) > 0 for c in (POFFIN, POKE_PAD, HILDA, DAWN)
     )
     hand_is_bricked = (
-        alakazam_line_field == 0
-        and alakazam_line_in_hand == 0
+        not have_usable_alakazam_line
         and not has_other_draw_engine_in_hand
     )
 
@@ -371,10 +387,34 @@ def handle_main(obs, options, min_count, max_count):
                         my_prizes,
                         len(op_state.prize)
                     )
-                    print(f"[attack-debug] hand={hand_size} op_hp={op_hp} score={score}", flush=True)
                 except Exception as e:
-                    print(f"[attack-debug] EXCEPTION: {e}", flush=True)
                     raise
+
+                # v3.30: existing evolve discount
+                attack_is_lethal_this_turn = (hand_size * 20) >= op_hp
+                if not attack_is_lethal_this_turn:
+                    has_unused_bench_evolve = any(
+                        opt.type == OptionType.EVOLVE
+                        and _get_card(obs, AreaType.HAND, opt.index, my_idx) is not None
+                        and _get_card(obs, AreaType.HAND, opt.index, my_idx).id
+                            in (KADABRA, ALAKAZAM, DUDUNSPARCE)
+                        for opt in options
+                    )
+                    if has_unused_bench_evolve:
+                        score = min(score, 9200.0)  # soft cap — just under EVOLVE's 9500
+
+                    # v3.32 Fix 2: discount when a free, board-improving supporter
+                    # (Dawn/Hilda) is available and unplayed this turn. Cap at 8400
+                    # — below Dawn's minimum score of 8500 so Dawn always wins.
+                    if not supporter_played:
+                        has_useful_unplayed_supporter = any(
+                            opt.type == OptionType.PLAY
+                            and _get_card(obs, AreaType.HAND, opt.index, my_idx) is not None
+                            and _get_card(obs, AreaType.HAND, opt.index, my_idx).id in (DAWN, HILDA)
+                            for opt in options
+                        )
+                        if has_useful_unplayed_supporter:
+                            score = min(score, 8400.0)  # below Dawn's 8500 minimum
             else:
                 score = 3000.0
 
@@ -576,7 +616,18 @@ def handle_main(obs, options, min_count, max_count):
                             best_score = _target_score(best_target, my_prizes, current_dmg)
                             active_score = _target_score(op_active, my_prizes, current_dmg) if op_active else 0
                             if best_score > active_score + 200:
-                                score = 7000.0
+                                if is_lethal and my_active and my_active.id == ALAKAZAM:
+                                    attack_opt = next((opt for opt in options if opt.type == OptionType.ATTACK), None)
+                                    if attack_opt:
+                                        current_attack_score = evaluate_attack(
+                                            obs, attack_opt.index, op_hp, hand_size, my_prizes, len(op_state.prize)
+                                        )
+                                        score = current_attack_score + 500.0
+                                        print(f"[BOSS LETHAL OVERRIDE] attack_score={current_attack_score}, boss_score={score}")
+                                    else:
+                                        score = 7000.0
+                                else:
+                                    score = 7000.0
                             else:
                                 score = -9999.0
                         else:
@@ -584,17 +635,52 @@ def handle_main(obs, options, min_count, max_count):
 
                     elif cid == LANAS_AID:
                         if not supporter_played:
-                            total_in_discard = sum(discard[c] for c in 
-                                [ABRA, KADABRA, ALAKAZAM, DUNSPARCE, DUDUNSPARCE, PSYCHIC_ENERGY])
                             hand_size = len(my_state.hand)
-                            if hand_size <= 3 and total_in_discard >= 2:
-                                score = 8500.0  # Emergency recovery after disruption
-                            elif total_in_discard >= 2:
-                                score = 6500.0
-                            elif total_in_discard >= 1:
-                                score = 6000.0  # TigerGGG tactics — early usage for dmg
+                            
+                            # NEW: lethal-margin check — does recovering 3 cards flip a
+                            # non-lethal Powerful Hand into a lethal one this turn?
+                            op_hp = _hp_remaining(op_active) if op_active else 999
+                            current_dmg = hand_size * 20
+                            dmg_with_lana = (hand_size + 3) * 20
+                            flips_to_lethal = current_dmg < op_hp <= dmg_with_lana
+                            
+                            if flips_to_lethal:
+                                score = 15000.0  # highest priority — directly secures a KO
+                                                   # that wasn't otherwise available this turn
                             else:
-                                score = -9999.0
+                                # NEW: weighted discard scoring instead of a single flat sum.
+                                # High-value pieces (Alakazam line pieces that let us
+                                # continue evolving/rebuilding, plus Lillie's Clefairy ex)
+                                # count for more than generic energy.
+                                high_value_in_discard = sum(
+                                    discard[c] for c in [ABRA, KADABRA, ALAKAZAM, LILLIE_CLEFAIRY_EX]
+                                )
+                                low_value_in_discard = sum(
+                                    discard[c] for c in [DUNSPARCE, DUDUNSPARCE, PSYCHIC_ENERGY]
+                                )
+                                
+                                if hand_size <= 3 and (high_value_in_discard + low_value_in_discard) >= 2:
+                                    score = 8500.0  # Emergency recovery after disruption, unchanged
+                                elif high_value_in_discard >= 2:
+                                    score = 7500.0  # NEW tier — pipeline rebuild is worth more
+                                                      # than the old flat 6500 when it's genuinely
+                                                      # high-value pieces, not just any 2 cards
+                                elif high_value_in_discard >= 1 or low_value_in_discard >= 2:
+                                    score = 6500.0
+                                elif low_value_in_discard >= 1:
+                                    score = 6000.0  # TigerGGG tactics — early usage, unchanged
+                                else:
+                                    score = -9999.0
+                                    
+                            # File-based logging for verification
+                            try:
+                                with open('lana_aid_log.txt', 'a') as f:
+                                    high_val = high_value_in_discard if not flips_to_lethal else -1
+                                    low_val = low_value_in_discard if not flips_to_lethal else -1
+                                    f.write(f"LANA_AID: flips={flips_to_lethal}, high={high_val}, low={low_val}, hand={hand_size}, score={score}\n")
+                            except:
+                                pass
+
                         else:
                             score = -9999.0
 
@@ -703,11 +789,15 @@ def handle_main(obs, options, min_count, max_count):
                             # in hand adds +20 damage to Powerful Hand!
                             if target.id in (ALAKAZAM, ALAKAZAM_TWM, KADABRA, ABRA):
                                 score = -9999.0
+                            elif target.id in (DUNSPARCE, DUDUNSPARCE):
+                                score = -9999.0  # NEVER attach non-Enriching to Dunsparce line
                             else:
                                 score = 100.0
                         else:
                             # Attach exactly one energy to power them up
-                            if target.id == ALAKAZAM:
+                            if target.id in (DUNSPARCE, DUDUNSPARCE):
+                                score = -9999.0  # NEVER attach non-Enriching to Dunsparce line
+                            elif target.id == ALAKAZAM:
                                 score = 9000.0
                             elif target.id == ALAKAZAM_TWM:
                                 score = 8000.0
@@ -729,9 +819,19 @@ def handle_main(obs, options, min_count, max_count):
                 for p in [op_active] + list(op_bench)
                 if p is not None
             )
-            
+
             if active and active.id in (ALAKAZAM, ALAKAZAM_TWM) and opponent_is_fighting:
                 score = -9999.0
+            elif active and active.id in (DUNSPARCE, DUDUNSPARCE):
+                # v3.32 Fix 1: Dunsparce/Dudunsparce is the designated tank.
+                # The ONLY valid reason to retreat it is if an energized Alakazam
+                # is ready to take over. Status conditions are NOT a valid reason
+                # — Run Away Draw is the correct cure, not a plain retreat.
+                alakazam_fully_ready = any(
+                    p and p.id == ALAKAZAM and _energy_count(p) >= 1
+                    for p in my_state.bench if p
+                )
+                score = 4000.0 if alakazam_fully_ready else -9999.0
             elif active and active.id not in (ALAKAZAM, ALAKAZAM_TWM):
                 # Get Alakazam to active
                 alakazam_ready = any(
@@ -757,8 +857,13 @@ def handle_main(obs, options, min_count, max_count):
 
         scores.append(score)
 
+
     scores = _sanity_check(obs, options, scores)
+    
+
     return _pick_best(scores, min_count, max_count)
+
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -873,7 +978,8 @@ def handle_to_bench(obs, options, min_count, max_count):
 
     scores = []
     for o in options:
-        card = _get_card(obs, AreaType.HAND, o.index, my_idx)
+        area = getattr(o, 'area', AreaType.HAND)
+        card = _get_card(obs, area, o.index, my_idx)
         if not card or bench_space <= 0:
             scores.append(-9999.0)
             continue
@@ -885,7 +991,7 @@ def handle_to_bench(obs, options, min_count, max_count):
             scores.append(70.0)
         else:
             scores.append(30.0)
-    return _pick_best(scores, min_count, max_count)
+    return _pick_best(scores, min_count, max_count, allow_empty=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -947,7 +1053,7 @@ def handle_to_hand(obs, options, min_count, max_count):
         score -= hand[cid] * 300.0
         scores.append(score)
 
-    return _pick_best(scores, min_count, max_count)
+    return _pick_best(scores, min_count, max_count, allow_empty=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
