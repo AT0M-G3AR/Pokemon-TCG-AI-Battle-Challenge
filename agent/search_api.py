@@ -225,7 +225,8 @@ def evaluate_attack(obs,
                     opponent_hp: int,
                     hand_size: int,
                     my_prizes_left: int,
-                    opponent_prizes_left: int) -> float:
+                    opponent_prizes_left: int,
+                    op_bench_count: int = 1) -> float:
     """
     Score how good it is to use this attack right now.
     Uses math-based calculation (Search API as enhancement).
@@ -245,6 +246,10 @@ def evaluate_attack(obs,
     if mist_on_opponent:
         print(f"EVALUATE_ATTACK WARNING: Target is protected by Mist Energy. Powerful Hand deals 0 damage.")
         current_damage = 0
+
+    # TIER 0: Empty-bench Instant Win (Wins regardless of prize count)
+    if current_damage >= opponent_hp and op_bench_count == 0:
+        return 50000.0
 
     # TIER 1: Game-winning KO
     if current_damage >= opponent_hp and my_prizes_left <= opponent_prizes_left:
