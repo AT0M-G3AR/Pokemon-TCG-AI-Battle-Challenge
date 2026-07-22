@@ -116,6 +116,31 @@ def _energy_count(pokemon):
     return len(getattr(pokemon, 'energies', []))
 
 
+def _deck_safety_discount(deck_count, draw_amount):
+    """
+    Graduated penalty for drawing cards when deck size is low.
+    - Danger Zone: Drawing more cards than are in the deck (or leaving 0).
+    - Critical: Leaving 1 card in the deck.
+    - Warning: Leaving 2-3 cards in the deck.
+    """
+    remaining = deck_count - draw_amount
+    discount = 0.0
+    if remaining <= 0:
+        discount = -9999.0
+    elif remaining <= 1:
+        discount = -5000.0
+    elif remaining <= 3:
+        discount = -2000.0
+        
+    if discount < 0:
+        try:
+            with open('deck_safety_log.txt', 'a') as f:
+                f.write(f"DECK_SAFETY_FIRED: deck={deck_count}, draw={draw_amount}, rem={remaining}, disc={discount}\n")
+        except:
+            pass
+    return discount
+
+
 def _get_card(obs, area, index, player_index):
     ps = obs.current.players[player_index]
     try:
@@ -253,6 +278,7 @@ def select_action(obs: Observation) -> list[int]:
             SelectContext.SETUP_BENCH_POKEMON:   handle_setup_bench,
             SelectContext.TO_BENCH:              handle_to_bench,
             SelectContext.TO_HAND:               handle_to_hand,
+            SelectContext.TO_DECK:               handle_to_deck,
             SelectContext.DISCARD:               handle_discard,
             SelectContext.SWITCH:                handle_to_active,
             SelectContext.TO_ACTIVE:             handle_to_active,
@@ -385,7 +411,8 @@ def handle_main(obs, options, min_count, max_count):
                         op_hp,
                         hand_size,
                         my_prizes,
-                        len(op_state.prize)
+                        len(op_state.prize),
+                        len(op_bench)
                     )
                 except Exception as e:
                     raise
@@ -433,7 +460,7 @@ def handle_main(obs, options, min_count, max_count):
                 hand_size = len(my_state.hand)
                 op_hp = _hp_remaining(op_active) if op_active else 999
                 
-                if other_pokemon == 0 or my_state.deckCount <= 4:
+                if other_pokemon == 0:
                     score = -9999.0
                 elif is_lethal:
                     score = -9999.0
@@ -463,6 +490,11 @@ def handle_main(obs, options, min_count, max_count):
                         score = 13000.0  # emergency draw — bricked hand, no other way forward
                     else:
                         score = -9999.0  # suppress — hold as tank instead
+                    
+                    if score > 0:
+                        score += _deck_safety_discount(my_state.deckCount, 3)
+                        if score < 0:
+                            score = -9999.0
             elif card and card.id in (KADABRA, ALAKAZAM):
                 # Psychic Draw on evolve — handled separately
                 score = 12000.0
@@ -580,6 +612,7 @@ def handle_main(obs, options, min_count, max_count):
                             score = 7500.0
                         else:
                             score = -9999.0
+                        score += _deck_safety_discount(my_state.deckCount, 2)
 
                     elif cid == DAWN:
                         if not supporter_played:
@@ -588,6 +621,7 @@ def handle_main(obs, options, min_count, max_count):
                                 score = 9000.0  # Even higher — get Fairy Zone online ASAP
                             else:
                                 score = 8500.0   # ALWAYS play Dawn — unconditional
+                            score += _deck_safety_discount(my_state.deckCount, 3)
                         else:
                             score = -9999.0
 
@@ -599,6 +633,7 @@ def handle_main(obs, options, min_count, max_count):
                                 score = 7500.0
                             else:
                                 score = 4000.0
+                            score += _deck_safety_discount(my_state.deckCount, 2)
                         else:
                             score = -9999.0
 
@@ -620,7 +655,7 @@ def handle_main(obs, options, min_count, max_count):
                                     attack_opt = next((opt for opt in options if opt.type == OptionType.ATTACK), None)
                                     if attack_opt:
                                         current_attack_score = evaluate_attack(
-                                            obs, attack_opt.index, op_hp, hand_size, my_prizes, len(op_state.prize)
+                                            obs, attack_opt.index, op_hp, hand_size, my_prizes, len(op_state.prize), len(op_bench)
                                         )
                                         score = current_attack_score + 500.0
                                         print(f"[BOSS LETHAL OVERRIDE] attack_score={current_attack_score}, boss_score={score}")
@@ -690,6 +725,7 @@ def handle_main(obs, options, min_count, max_count):
                             score = 6000.0
                         else:
                             score = 5000.0  # Just getting Dudunsparce is always good
+                        score += _deck_safety_discount(my_state.deckCount, 1)
 
                     elif cid == NIGHT_STRETCH:
                         # Recover Pokémon from discard
@@ -885,8 +921,20 @@ def handle_activate(obs, options, min_count, max_count):
             card = _get_card(obs, o.area if hasattr(o, 'area') else AreaType.BENCH,
                            o.index, my_idx)
             
-            if card and card.id == DUDUNSPARCE and is_lethal:
-                score = -9999.0  # Don't draw if we're already lethal!
+            if card and card.id == DUDUNSPARCE:
+                if is_lethal:
+                    score = -9999.0  # Don't draw if we're already lethal!
+                else:
+                    base_score = 9000.0
+                    score = base_score + _deck_safety_discount(state.players[my_idx].deckCount, 3)
+                    if score < 0:
+                        score = -9999.0
+            elif card and card.id in (KADABRA, ALAKAZAM):
+                # Psychic Draw activation
+                base_score = 9000.0
+                score = base_score + _deck_safety_discount(state.players[my_idx].deckCount, 2)
+                if score < 0:
+                    score = -9999.0
             elif card and card.id == ABRA:
                 # Teleporter ACTIVATE confirmation
                 bench_empty = all(p is None for p in state.players[my_idx].bench)
@@ -1051,6 +1099,62 @@ def handle_to_hand(obs, options, min_count, max_count):
             score = 3000.0
 
         score -= hand[cid] * 300.0
+        scores.append(score)
+
+    return _pick_best(scores, min_count, max_count, allow_empty=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HANDLE TO DECK (context 9)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def handle_to_deck(obs, options, min_count, max_count):
+    """
+    Choose which card(s) to shuffle from discard into the deck.
+    Triggered by Sacred Ash / Super Rod.
+    """
+    print(f"[HANDLE TO DECK FIRED] options={len(options)} min={min_count} max={max_count}", flush=True)
+    
+    state  = obs.current
+    my_idx = state.yourIndex
+    field  = _field_counts(state, my_idx)
+
+    alakazam_in_field = field[ABRA] + field[KADABRA] + field[ALAKAZAM]
+    dudunsparce_in_field = field[DUNSPARCE] + field[DUDUNSPARCE]
+
+    scores = []
+    for o in options:
+        if o.type == OptionType.NO:
+            scores.append(-9999.0)
+            continue
+            
+        card = _get_card(obs, o.area, o.index, my_idx)
+        if not card:
+            scores.append(0.0)
+            continue
+
+        cid = card.id
+        score = 100.0
+
+        if cid == DUDUNSPARCE:
+            score = 10000.0 if dudunsparce_in_field < 2 else 5000.0
+        elif cid == ALAKAZAM:
+            score = 9000.0 if alakazam_in_field < 2 else 4500.0
+        elif cid == KADABRA:
+            score = 8000.0 if alakazam_in_field < 3 else 3000.0
+        elif cid == ABRA:
+            score = 7000.0 if alakazam_in_field < 3 else 1000.0
+        elif cid == DUNSPARCE:
+            score = 6000.0 if dudunsparce_in_field < 3 else 1000.0
+        elif cid == LILLIE_CLEFAIRY_EX:
+            score = 5000.0
+        elif cid == SHAYMIN:
+            score = 4000.0
+        elif cid in (PSYCHIC_ENERGY, TELEPATH_ENERGY):
+            score = 3000.0
+        else:
+            score = 2000.0  # Generic recovery
+
         scores.append(score)
 
     return _pick_best(scores, min_count, max_count, allow_empty=True)
@@ -1246,7 +1350,10 @@ def handle_attach_to(obs, options, min_count, max_count):
                 score = -9999.0  # NEVER attach Enriching to Alakazam line
 
         elif energy_id == TELEPATH_ENERGY:
-            if tid in (ALAKAZAM, KADABRA, ABRA):
+            my_state = state.players[my_idx]
+            if my_state.deckCount <= 2:
+                score = -9999.0  # Hard block
+            elif tid in (ALAKAZAM, KADABRA, ABRA):
                 if _energy_count(poke) == 0:
                     
                     score = 9500.0  # Best target — trigger ability
