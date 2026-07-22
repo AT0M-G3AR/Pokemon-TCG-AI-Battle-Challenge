@@ -927,14 +927,10 @@ def handle_activate(obs, options, min_count, max_count):
                 else:
                     base_score = 9000.0
                     score = base_score + _deck_safety_discount(state.players[my_idx].deckCount, 3)
-                    if score < 0:
-                        score = -9999.0
             elif card and card.id in (KADABRA, ALAKAZAM):
                 # Psychic Draw activation
                 base_score = 9000.0
                 score = base_score + _deck_safety_discount(state.players[my_idx].deckCount, 2)
-                if score < 0:
-                    score = -9999.0
             elif card and card.id == ABRA:
                 # Teleporter ACTIVATE confirmation
                 bench_empty = all(p is None for p in state.players[my_idx].bench)
