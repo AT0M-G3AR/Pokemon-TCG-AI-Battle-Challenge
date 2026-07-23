@@ -65,6 +65,7 @@ LILLIE_CLEFAIRY_EX = 272
 SHAYMIN       = 343
 XEROSIC       = 1197
 NIGHTTIME_MINE = 1266
+TEAM_ROCKETS_ARTICUNO = 414
 
 PSYCHIC_ENERGY  = 5
 TELEPATH_ENERGY = 19
@@ -256,11 +257,22 @@ def _target_score(pokemon, my_prizes_left, current_damage=0):
     # Massively prioritize things we can actually kill
     if current_damage > 0 and hp_left <= current_damage:
         score += 10000.0
+    
+    if pokemon.id == TEAM_ROCKETS_ARTICUNO:
+        score += 5000.0
+        
     score += _energy_count(pokemon) * 150.0
     score -= hp_left * 0.3
     if prizes >= my_prizes_left and current_damage > 0 and hp_left <= current_damage:
         score += 50000.0
     return score
+
+def has_articuno_revealed(op_state):
+    op_cards = op_state.active + op_state.bench
+    for p in op_cards:
+        if p and p.id == TEAM_ROCKETS_ARTICUNO:
+            return True
+    return False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -648,15 +660,20 @@ def handle_main(obs, options, min_count, max_count):
                             # Calculate our active's damage
                             current_dmg = 0
                             my_active = next((p for p in my_state.active if p), None)
-                            if my_active and my_active.id == ALAKAZAM:
-                                current_dmg = len(my_state.hand) * 20
+                            if my_active:
+                                if my_active.id == ALAKAZAM:
+                                    current_dmg = len(my_state.hand) * 20
+                                elif my_active.id == LILLIE_CLEFAIRY_EX:
+                                    my_bench = [p for p in my_state.bench if p]
+                                    op_bench_list = [p for p in op_state.bench if p]
+                                    current_dmg = 20 + 20 * (len(my_bench) + len(op_bench_list))
                                 
                             best_target = max(op_bench, 
                                 key=lambda p: _target_score(p, my_prizes, current_dmg))
                             best_score = _target_score(best_target, my_prizes, current_dmg)
                             active_score = _target_score(op_active, my_prizes, current_dmg) if op_active else 0
                             if best_score > active_score + 200:
-                                if is_lethal and my_active and my_active.id == ALAKAZAM:
+                                if is_lethal and my_active and my_active.id in (ALAKAZAM, LILLIE_CLEFAIRY_EX):
                                     attack_opt = next((opt for opt in options if opt.type == OptionType.ATTACK), None)
                                     if attack_opt:
                                         current_attack_score = evaluate_attack(
@@ -1081,9 +1098,17 @@ def handle_to_hand(obs, options, min_count, max_count):
         elif cid == ABRA:
             score = 7000.0 if alakazam_in_field < 3 else 1000.0
         elif cid == DUDUNSPARCE:
-            score = 9500.0 if field[DUDUNSPARCE] < 3 else 2000.0
+            if field[DUNSPARCE] >= 1:
+                score = 9500.0
+            else:
+                score = 4000.0
         elif cid == DUNSPARCE:
-            score = 5000.0 if field[DUNSPARCE] < 3 else 500.0
+            if field[DUNSPARCE] == 0:
+                score = 9600.0
+            elif field[DUNSPARCE] < 3:
+                score = 5000.0
+            else:
+                score = 500.0
         elif cid == RARE_CANDY:
             score = 7500.0 if field[ABRA] >= 1 else 2000.0
         elif cid in (PSYCHIC_ENERGY, TELEPATH_ENERGY):
@@ -1375,6 +1400,13 @@ def handle_attach_to(obs, options, min_count, max_count):
                 score = 7000.0
             elif tid == ABRA:
                 score = 4000.0
+            elif tid == LILLIE_CLEFAIRY_EX:
+                if area == AreaType.ACTIVE and _energy_count(poke) < 2:
+                    score = 6000.0
+                elif has_articuno_revealed(state.players[1 - my_idx]) and _energy_count(poke) < 2:
+                    score = 8000.0
+                else:
+                    score = -9999.0
             else:
                 score = -9999.0
         else:
