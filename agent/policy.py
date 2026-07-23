@@ -227,19 +227,24 @@ def _lethal_now(state, my_idx, op_idx):
         return False
         
     my_active = my_state.active[0] if my_state.active else None
-    if not my_active or my_active.id != ALAKAZAM:
-        return False
-        
+    
     # Check if Alakazam has the required 1 Psychic energy
     energy_count = _energy_count(my_active)
     if energy_count < 1:
         return False
         
-    hp_left = _hp_remaining(op_active[0])
-    hand_size = len(my_state.hand)
-    damage = _powerful_hand_damage(hand_size)
+    if not my_active or not op_active:
+        return False
+        
+    if my_active.id == ALAKAZAM:
+        if _opponent_has_mist_energy(state, op_idx):
+            return False
+            
+        op_hp = _hp_remaining(op_active[0])
+        hand_size = len(my_state.hand)
+        return (hand_size * 20) >= op_hp
     
-    return damage >= hp_left
+    return False
 
 
 def _target_score(pokemon, my_prizes_left, current_damage=0):
@@ -1497,20 +1502,63 @@ def handle_to_hand_energy(obs, options, min_count, max_count):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def handle_discard_energy(obs, options, min_count, max_count):
-    """Discard basic Psychic before special energy."""
+    """Discard basic Psychic before special energy (or target opponent's Mist Energy)."""
+    state = obs.current
+    my_idx = state.yourIndex
+    op_idx = 1 - my_idx
+    
+    my_active = next((p for p in state.players[my_idx].active if p), None)
+    alakazam_is_or_will_be_attacker = (my_active is not None and my_active.id == ALAKAZAM)
+    
     scores = []
     for o in options:
-        card = _get_card(obs, o.area if hasattr(o, 'area') else AreaType.ACTIVE,
-                        o.index, obs.current.yourIndex)
-        cid = getattr(card, 'id', 0) if card else 0
-        if cid == PSYCHIC_ENERGY:
-            scores.append(900.0)   # Discard basic first
-        elif cid == TELEPATH_ENERGY:
-            scores.append(700.0)
-        elif cid == ENRICHING_ENERGY:
-            scores.append(100.0)   # Keep ACE SPEC as long as possible
+        # Default to old behavior if playerIndex is missing or points to us (fail-safe)
+        if getattr(o, 'playerIndex', None) != op_idx:
+            card = _get_card(obs, o.area if hasattr(o, 'area') else AreaType.ACTIVE,
+                            o.index, my_idx)
+            cid = getattr(card, 'id', 0) if card else 0
+            if cid == PSYCHIC_ENERGY:
+                scores.append(900.0)   # Discard basic first
+            elif cid == TELEPATH_ENERGY:
+                scores.append(700.0)
+            elif cid == ENRICHING_ENERGY:
+                scores.append(100.0)   # Keep ACE SPEC as long as possible
+            else:
+                scores.append(500.0)
         else:
-            scores.append(500.0)
+            # New behavior: Target opponent's energy (e.g., via Enhanced Hammer)
+            # Find the targeted Pokémon
+            target_pokemon = None
+            try:
+                op_state = state.players[op_idx]
+                area = o.area if hasattr(o, 'area') else AreaType.ACTIVE
+                idx = o.index if hasattr(o, 'index') and o.index is not None else 0
+                if area == AreaType.ACTIVE:
+                    target_pokemon = op_state.active[idx] if idx < len(op_state.active) else None
+                elif area == AreaType.BENCH:
+                    target_pokemon = op_state.bench[idx] if idx < len(op_state.bench) else None
+            except Exception:
+                pass
+            
+            # Find the targeted energy card
+            energy_card = None
+            if target_pokemon and hasattr(o, 'energyIndex') and o.energyIndex is not None:
+                try:
+                    energy_card = target_pokemon.energyCards[o.energyIndex]
+                except (IndexError, AttributeError):
+                    pass
+            
+            energy_id = getattr(energy_card, 'id', None)
+            is_opponent_active = (target_pokemon is not None and target_pokemon in state.players[op_idx].active)
+            
+            if energy_id == MIST_ENERGY:
+                if alakazam_is_or_will_be_attacker and is_opponent_active:
+                    scores.append(9800.0)
+                else:
+                    scores.append(7000.0)
+            else:
+                scores.append(3000.0)
+                
     return _pick_best(scores, min_count, max_count)
 
 
