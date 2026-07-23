@@ -76,10 +76,10 @@ def run_scenario(name, deck_counts, fn):
             import traceback
             traceback.print_exc()
 
-counts = [40, 3, 1, 0]
+counts = [40, 5, 4, 3, 2, 1, 0]
 
-opt_play = lambda cid: type('obj', (), {'type': OptionType.PLAY, 'area': AreaType.HAND, 'index': cid, 'target': 0})
-opt_act = lambda t, cid: type('obj', (), {'type': t, 'area': AreaType.BENCH, 'index': cid, 'target': 0})
+opt_play = lambda cid: type('obj', (), {'type': OptionType.PLAY, 'area': AreaType.HAND, 'index': cid, 'target': KADABRA})
+opt_act = lambda t, cid: type('obj', (), {'type': t, 'area': AreaType.BENCH, 'index': cid, 'target': KADABRA})
 
 run_scenario("Poké Pad", counts, lambda o: handle_main(o, [opt_play(POKE_PAD)], 0, 1))
 run_scenario("Hilda", counts, lambda o: handle_main(o, [opt_play(HILDA)], 0, 1))
@@ -92,11 +92,11 @@ run_scenario("Dudunsparce YES", counts, lambda o: handle_activate(o, [opt_act(Op
 print(f"\n--- Telepathic Energy (Hard block) ---")
 for dc in [40, 3, 2, 0]:
     o = MockObs(dc)
-    scores = handle_attach_to(o, [type('obj', (), {'area': AreaType.BENCH, 'index': 0, 'type': 0, 'target': 0})], TELEPATH_ENERGY, 0)
+    scores = handle_attach_to(o, [type('obj', (), {'area': AreaType.BENCH, 'index': 0, 'type': 0, 'target': KADABRA})], TELEPATH_ENERGY, 0)
     print(f"Deck={dc:2} -> raw scores array: {scores}")
 
 print(f"\n--- Enriching Energy (Hard block) ---")
 for dc in [40, 5, 4, 0]:
     o = MockObs(dc)
-    scores = handle_attach_to(o, [type('obj', (), {'area': AreaType.BENCH, 'index': 0, 'type': 0, 'target': 0})], ENRICHING_ENERGY, 0)
+    scores = handle_attach_to(o, [type('obj', (), {'area': AreaType.BENCH, 'index': 0, 'type': 0, 'target': KADABRA})], ENRICHING_ENERGY, 0)
     print(f"Deck={dc:2} -> raw scores array: {scores}")

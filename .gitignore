@@ -28,9 +28,12 @@ obs_dump.json
 # Kaggle episode replay JSONs (data files, not source)
 [0-9]*.json
 
-# Stdout capture files from debug runs
+# Stdout capture files and logs from debug runs
 out_*.txt
 sim_output.txt
+*.log
+*_log.txt
+
 
 # One-off investigation / debug scripts in tools/
 tools/check_*.py
