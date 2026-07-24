@@ -619,7 +619,7 @@ def handle_main(obs, options, min_count, max_count):
                         alakazam_in_hand = hand[ALAKAZAM] > 0
                         kadabra_missing = field[KADABRA] == 0
                         if abra_in_play and alakazam_in_hand and kadabra_missing:
-                            score = 7000.0  # Skip Kadabra — instant Stage 2
+                            score = 9800.0  # Skip Kadabra — instant Stage 2
                         else:
                             score = -9999.0
 
@@ -902,6 +902,19 @@ def handle_main(obs, options, min_count, max_count):
                     base_score += 3000.0
 
                 score = base_score
+
+                # Wasteful early-game voluntary retreat guard (v3.42 Fix 1)
+                # Only penalize if losing energy, undamaged, no status to cure, AND no Alakazam ready to take over
+                if _energy_count(active) >= 1 and not my_status_curable_by_retreat and not alakazam_ready:
+                    card_data = CARD_DB.get(active.id)
+                    max_hp = getattr(card_data, 'hp', 999) if card_data else 999
+                    if _hp_remaining(active) >= max_hp:
+                        score = -9999.0  # Hard block: pure resource waste
+                        try:
+                            with open('retreat_block_log.txt', 'a') as f:
+                                f.write(f"RETREAT BLOCKED: active={active.id}, energy={_energy_count(active)}, max_hp={max_hp}\n")
+                        except:
+                            pass
             else:
                 score = -9999.0  # Never retreat Alakazam
 
@@ -1094,7 +1107,13 @@ def handle_to_hand(obs, options, min_count, max_count):
             already_has_shaymin = any(p and p.id == SHAYMIN for p in state.players[my_idx].bench)
             score = 8500.0 if not already_has_shaymin else 1000.0
         elif cid == KADABRA:
-            score = 8000.0 if field[ABRA] >= 1 else 3000.0
+            alakazam_line_missing = field[KADABRA] == 0 and field[ALAKAZAM] == 0
+            if field[ABRA] >= 1 and alakazam_line_missing:
+                score = 9700.0  # Beats Dudunsparce — evolving Abra is the immediate priority
+            elif field[ABRA] >= 1:
+                score = 8000.0
+            else:
+                score = 3000.0
         elif cid == ABRA:
             score = 7000.0 if alakazam_in_field < 3 else 1000.0
         elif cid == DUDUNSPARCE:
