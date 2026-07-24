@@ -66,6 +66,16 @@ SHAYMIN       = 343
 XEROSIC       = 1197
 NIGHTTIME_MINE = 1266
 TEAM_ROCKETS_ARTICUNO = 414
+DAMAGE_BLOCKING_ABILITY_IDS = {
+    TEAM_ROCKETS_ARTICUNO,  # Repelling Veil
+    74,  # Rabsca - Spherical Shield
+    28,  # Poltchageist - Storehouse Hideaway
+    203, # Skeledirge - Unaware
+    835, # Empoleon ex - Emperor's Stance
+    362, # Misty's Magikarp - So Submerged
+    117, # Cornerstone Mask Ogerpon ex - Cornerstone Stance
+    207, # Milotic ex - Sparkling Scales
+}
 
 PSYCHIC_ENERGY  = 5
 TELEPATH_ENERGY = 19
@@ -258,7 +268,7 @@ def _target_score(pokemon, my_prizes_left, current_damage=0):
     if current_damage > 0 and hp_left <= current_damage:
         score += 10000.0
     
-    if pokemon.id == TEAM_ROCKETS_ARTICUNO:
+    if pokemon.id in DAMAGE_BLOCKING_ABILITY_IDS:
         score += 5000.0
         
     score += _energy_count(pokemon) * 150.0
@@ -267,10 +277,10 @@ def _target_score(pokemon, my_prizes_left, current_damage=0):
         score += 50000.0
     return score
 
-def has_articuno_revealed(op_state):
+def has_damage_blocker_revealed(op_state):
     op_cards = op_state.active + op_state.bench
     for p in op_cards:
-        if p and p.id == TEAM_ROCKETS_ARTICUNO:
+        if p and p.id in DAMAGE_BLOCKING_ABILITY_IDS:
             return True
     return False
 
@@ -1422,7 +1432,7 @@ def handle_attach_to(obs, options, min_count, max_count):
             elif tid == LILLIE_CLEFAIRY_EX:
                 if area == AreaType.ACTIVE and _energy_count(poke) < 2:
                     score = 6000.0
-                elif has_articuno_revealed(state.players[1 - my_idx]) and _energy_count(poke) < 2:
+                elif has_damage_blocker_revealed(state.players[1 - my_idx]) and _energy_count(poke) < 2:
                     score = 8000.0
                 else:
                     score = -9999.0
