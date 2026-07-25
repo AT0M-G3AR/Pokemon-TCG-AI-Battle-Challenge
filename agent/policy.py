@@ -2,7 +2,7 @@
 PTCG AI Battle Challenge — v3 Alakazam + Dudunsparce Policy
 AT0M-G3AR | Gary & Team | 2026
 
-DECK: Alakazam (Powerful Hand) + Dudunsparce (Run Away Draw)
+DECK (v3.45): Alakazam (Powerful Hand) + Dudunsparce (Run Away Draw)
 WIN CONDITION: Powerful Hand — 2 damage counters per card in hand (uncapped)
 
 THREE CORE RULES:
@@ -12,13 +12,14 @@ THREE CORE RULES:
 
 KEY CARD IDS:
   Pokémon:  Abra=741, Kadabra=742, Alakazam=743, Alakazam_TWM=245
-            Dunsparce=305, Dudunsparce=66, Shaymin=343
+            Dunsparce=65, Dudunsparce=66, Shaymin=343
+            Dreepy=119, Drakloak=120, Dragapult_ex=121, Munkidori=112
   Trainers: Poffin=1086, RareCandy=1079, EnhancedHammer=1081
             PokeePad=1152, NightStretcher=1097, SacredAsh=1129
             BossOrders=1182, LanasAid=1184, Hilda=1225
-            Dawn=1231, BattleCage=1264
+            Dawn=1231, BattleCage=1264, Xerosic=1197
   Energy:   Psychic=5, Telepath=19, Enriching=13 (ACE SPEC)
-  Special:  MistEnergy=11, RockyFighting=? (blocks damage counters)
+  Special:  MistEnergy=11
 """
 
 import random
@@ -64,8 +65,10 @@ BATTLE_CAGE   = 1264
 LILLIE_CLEFAIRY_EX = 272
 SHAYMIN       = 343
 XEROSIC       = 1197
-NIGHTTIME_MINE = 1266
+NIGHTTIME_MINE = 1266   # Removed from our deck in v3.45; constant kept for opponent detection
 TEAM_ROCKETS_ARTICUNO = 414
+
+# v3.43: Pokémon whose abilities block damage or effects of attacks
 DAMAGE_BLOCKING_ABILITY_IDS = {
     TEAM_ROCKETS_ARTICUNO,  # Repelling Veil
     74,  # Rabsca - Spherical Shield
@@ -76,6 +79,15 @@ DAMAGE_BLOCKING_ABILITY_IDS = {
     117, # Cornerstone Mask Ogerpon ex - Cornerstone Stance
     207, # Milotic ex - Sparkling Scales
 }
+
+# v3.45: Dragapult matchup — Phantom Dive spread + Munkidori counter-theft
+DREEPY        = 119   # Pre-evolution; 70 HP, low snipe priority
+DRAKLOAK      = 120   # 90 HP; two turns from Dragapult — snipe priority
+DRAGAPULT_EX  = 121   # 320 HP; must one-shot — never chip
+MUNKIDORI     = 112   # 110 HP; Adrena-Brain moves counters off tank onto our bench
+# HIGH_HP_CHIP_THRESHOLD: targets at or above this HP trigger the Munkidori counter-theft discount.
+# Set to 200 — covers Dragapult ex (320) and Munkidori ex (210) but not Drakloak (90) or generics.
+HIGH_HP_CHIP_THRESHOLD = 200
 
 PSYCHIC_ENERGY  = 5
 TELEPATH_ENERGY = 19
@@ -267,10 +279,20 @@ def _target_score(pokemon, my_prizes_left, current_damage=0):
     # Massively prioritize things we can actually kill
     if current_damage > 0 and hp_left <= current_damage:
         score += 10000.0
-    
+
     if pokemon.id in DAMAGE_BLOCKING_ABILITY_IDS:
-        score += 5000.0
-        
+        score += 5000.0  # v3.43 blocker-snipe bonus — highest matchup bonus
+
+    # v3.45 Rule C — Drakloak snipe priority.
+    # Every dead Drakloak is a 320 HP / 2-prize Dragapult that never happens.
+    # Bonus fires only when we can KO it this turn (already gated by the +10000
+    # lethal block above). The explicit per-ID bonus provides ordering:
+    #   blocker (+5000) > Drakloak (+3000) > generic (+0)
+    # Dreepy is deliberately excluded — two turns from Dragapult, often not worth
+    # a Boss's Orders at this stage of development.
+    if pokemon.id == DRAKLOAK and current_damage > 0 and hp_left <= current_damage:
+        score += 3000.0  # sits below blocker bonus (5000), above generic
+
     score += _energy_count(pokemon) * 150.0
     score -= hp_left * 0.3
     if prizes >= my_prizes_left and current_damage > 0 and hp_left <= current_damage:
@@ -281,6 +303,21 @@ def has_damage_blocker_revealed(op_state):
     op_cards = op_state.active + op_state.bench
     for p in op_cards:
         if p and p.id in DAMAGE_BLOCKING_ABILITY_IDS:
+            return True
+    return False
+
+def _in_dragapult_matchup(op_state):
+    """v3.45: True if opponent has any Dragapult-line Pokémon revealed."""
+    dragapult_line = {DREEPY, DRAKLOAK, DRAGAPULT_EX, MUNKIDORI}
+    for p in (op_state.active + op_state.bench):
+        if p and p.id in dragapult_line:
+            return True
+    return False
+
+def _munkidori_in_play(op_state):
+    """v3.45: True if opponent's Munkidori is visible (active or bench)."""
+    for p in (op_state.active + op_state.bench):
+        if p and p.id == MUNKIDORI:
             return True
     return False
 
@@ -475,12 +512,6 @@ def handle_main(obs, options, min_count, max_count):
                     # Rare Candy can jump straight to Stage 2 (score 9800). But only if
                     # we play it BEFORE attacking — once the attack resolves, Candy can't
                     # play this turn. Cap the non-lethal attack below 9800 so Candy wins.
-                    #
-                    # Safety check: we only defer the attack if playing Candy doesn't cost
-                    # a same-turn KO. If (hand_size - 2) * 20 >= op_hp, Candy is still
-                    # lethal after its cost, so deferring is always safe. If the attack
-                    # isn't lethal at all (attack_is_lethal_this_turn is already False
-                    # here), there is no KO to protect regardless.
                     has_playable_rare_candy = any(
                         opt.type == OptionType.PLAY
                         and _get_card(obs, AreaType.HAND, opt.index, my_idx) is not None
@@ -489,11 +520,33 @@ def handle_main(obs, options, min_count, max_count):
                     )
                     if has_playable_rare_candy and field[ABRA] > 0 and hand[ALAKAZAM] > 0 and field[KADABRA] == 0:
                         score = min(score, 9750.0)  # just under Rare Candy's 9800
-                        try:
-                            with open('retreat_block_log.txt', 'a') as f:
-                                f.write(f"CANDY_DEFER: hand={hand_size}, op_hp={op_hp}, attack_capped_to=9750\n")
-                        except:
-                            pass
+
+                    # v3.45 Rules A + B — Dragapult/Munkidori chip-feedback discount.
+                    #
+                    # Rule A: Don't chip Dragapult ex — one-shot it.
+                    #   Dragapult ex has 320 HP; Powerful Hand one-shots at hand ≥ 16.
+                    #   Non-lethal chip is wasted tempo AND feeds Munkidori counter-theft.
+                    #   Soft-cap non-lethal attacks into Dragapult ex specifically.
+                    #
+                    # Rule B: Munkidori counter-theft discount.
+                    #   Adrena-Brain moves placed counters off their tank onto OUR bench.
+                    #   When Munkidori is live, any non-lethal attack into a high-HP target
+                    #   (≥ HIGH_HP_CHIP_THRESHOLD) feeds the counter loop.
+                    #   Soft-cap those attacks below 2000 — still positive, won't suppress
+                    #   lethal (gated above), won't suppress attacks into KO-able targets.
+                    #
+                    # Both caps are gated inside `if not attack_is_lethal_this_turn:` —
+                    # lethal attacks are never affected.
+                    op_active_id = op_active.id if op_active else None
+                    op_hp_for_cap = _hp_remaining(op_active) if op_active else 0
+
+                    # Rule A: Dragapult ex specifically
+                    if op_active_id == DRAGAPULT_EX:
+                        score = min(score, 1800.0)  # strongly discourage chip into 320 HP tank
+
+                    # Rule B: Munkidori live + high-HP target (covers Munkidori ex, Dragapult ex)
+                    elif _munkidori_in_play(op_state) and op_hp_for_cap >= HIGH_HP_CHIP_THRESHOLD:
+                        score = min(score, 1800.0)  # counter-theft makes this actively harmful
             else:
                 score = 3000.0
 
@@ -812,12 +865,24 @@ def handle_main(obs, options, min_count, max_count):
                             score = -9999.0
 
                     elif cid == BATTLE_CAGE:
-                        # Check if opponent has a stadium that benefits them
+                        # v3.45: Battle Cage play-priority logic.
+                        # Play ASAP — the turn it's drawn. It protects our bench from
+                        # damage-counter placement (Phantom Dive spread, Adrena-Brain
+                        # counter-theft, Cursed Blast) AND removes the opponent's stadium.
+                        # Core priority: 8500 — above generic trainers, played same turn drawn.
+                        # Elevated to 10500 if we are in the Dragapult matchup (Phantom Dive
+                        # spread active) OR if we currently have no Cage in play (revealed by
+                        # the opponent already having a stadium — our Cage was bumped).
                         current_stadium = getattr(state, 'stadium', None)
-                        if current_stadium and getattr(current_stadium, 'playerIndex', my_idx) != my_idx:
-                            score = 8000.0  # Replace opponent's stadium immediately
+                        op_has_stadium = (current_stadium is not None
+                                          and getattr(current_stadium, 'playerIndex', my_idx) != my_idx)
+                        in_dragapult = _in_dragapult_matchup(op_state)
+                        if in_dragapult or op_has_stadium:
+                            # Dragapult context (Phantom Dive spread live) or bumped-Cage recovery:
+                            # second copy gets same urgency as the first.
+                            score = 10500.0
                         else:
-                            score = 2500.0
+                            score = 8500.0  # Play early regardless — bench protection + stadium removal
 
                     elif cid == XEROSIC:
                         if not supporter_played:
@@ -829,12 +894,9 @@ def handle_main(obs, options, min_count, max_count):
                         else:
                             score = -9999.0
 
-                    elif cid == NIGHTTIME_MINE:
-                        current_stadium = getattr(state, 'stadium', None)
-                        if current_stadium and getattr(current_stadium, 'playerIndex', my_idx) != my_idx:
-                            score = 8000.0  # Replace opponent's stadium immediately
-                        else:
-                            score = 2500.0
+                    # v3.45: NIGHTTIME_MINE own-play block retired — card removed from our deck.
+                    # The constant is kept for any future opponent-detection use.
+                    # elif cid == NIGHTTIME_MINE: (dead code — no longer in our hand)
 
                     elif cid == LILLIE_CLEFAIRY_EX:
                         # Only bench if facing Dragons
