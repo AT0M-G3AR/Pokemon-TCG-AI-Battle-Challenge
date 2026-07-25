@@ -105,8 +105,8 @@ def cage_score(in_dragapult=False, opp_has_stadium=False):
     op.prize = [None] * 4
 
     if opp_has_stadium:
-        state.stadium = MagicMock()
-        state.stadium.playerIndex = 1  # opponent's stadium
+        # API: stadium is list[Card]; opponent's non-Cage stadium (e.g. Jamming Tower = some other ID)
+        state.stadium = [Card(9999)]  # non-BATTLE_CAGE ID → op_has_stadium = True
 
     options = [Opt(OptionType.PLAY, index=0)]  # Battle Cage in hand[0]
     for i in range(1, len(my.hand)):
@@ -304,6 +304,67 @@ ds_scores2 = get_scores(state2, ds_options)
 ds_score2 = ds_scores2[0]
 check("Dunsparce suppressed when 3 already on bench (dunsparce_field=3, not < 3)",
       ds_score2 <= 0, f"got {ds_score2}")
+
+
+# ── Section 7: Battle Cage sequencing (v3.45b) ────────────────────────────────
+print("\n" + "=" * 62)
+print("[7] Battle Cage sequencing: attack capped when Cage is in hand")
+print("=" * 62)
+
+def cage_seq_attack_score(hand_size, op_hp, raw_score=10000.0, include_cage=True):
+    """Attack score when Cage is (or isn't) in hand."""
+    state = State()
+    my = state.players[0]
+    my.active = [Card(pol.ALAKAZAM, hp=150, energies=[pol.PSYCHIC_ENERGY])]
+    # Build hand: hand_size neutral cards + optionally Battle Cage
+    my.hand = [Card(pol.PSYCHIC_ENERGY)] * hand_size
+    if include_cage:
+        my.hand = [Card(pol.BATTLE_CAGE)] + my.hand  # Cage added (hand_size unchanged for dmg calc)
+
+    op = state.players[1]
+    op.active = [Card(999, hp=op_hp, damage=0)]
+    op.bench = []
+    op.prize = [None] * 4
+
+    options = []
+    if include_cage:
+        options.append(Opt(OptionType.PLAY, index=0))  # Cage at index 0
+    for i in range(len(my.hand) - (1 if include_cage else 0)):
+        options.append(Opt(OptionType.PLAY, index=i + (1 if include_cage else 0)))
+    atk_idx = len(options)
+    options.append(Opt(OptionType.ATTACK, index=atk_idx))
+    options.append(Opt(OptionType.END, index=atk_idx + 1))
+
+    scores = get_scores(state, options, raw_attack_score=raw_score)
+    # Attack is always the second-to-last option
+    return scores[atk_idx]
+
+# Case C: Non-lethal attack with Cage in hand → attack capped ≤ 8499
+# hand=10 → dmg=200, op_hp=300 → non-lethal
+sc_nonlethal_with_cage = cage_seq_attack_score(hand_size=10, op_hp=300, include_cage=True)
+check("Case C: non-lethal attack + Cage in hand → attack ≤ 8499",
+      sc_nonlethal_with_cage <= 8499.0, f"got {sc_nonlethal_with_cage}")
+check("Case C: attack not fully suppressed (> 0)",
+      sc_nonlethal_with_cage > 0, f"got {sc_nonlethal_with_cage}")
+
+# Case A: Lethal-with-margin — attack IS lethal AND (hand-1)*20 >= op_hp
+# hand=15 → dmg=300, op_hp=250, dmg_after_cage=280 >= 250 → safe to play Cage first
+sc_lethal_margin = cage_seq_attack_score(hand_size=15, op_hp=250, include_cage=True, raw_score=50000.0)
+check("Case A: lethal-with-margin + Cage → attack capped ≤ 8499",
+      sc_lethal_margin <= 8499.0, f"got {sc_lethal_margin}")
+
+# Case B: Lethal-would-break — (hand-1)*20 < op_hp → attack fires at full score
+# With Cage in hand: total hand = 11 (10 psychic + 1 cage)
+# hand*20 = 220 → lethal at op_hp=210
+# (hand-1)*20 = 200 < 210 → cage_is_safe = False → Case B fires, attack NOT capped
+sc_lethal_tight = cage_seq_attack_score(hand_size=10, op_hp=210, include_cage=True, raw_score=50000.0)
+check("Case B: lethal-would-break → attack NOT capped (Cage waits)",
+      sc_lethal_tight > 8499.0, f"got {sc_lethal_tight}")
+
+# Regression: no Cage in hand → no cap at all
+sc_no_cage = cage_seq_attack_score(hand_size=10, op_hp=300, include_cage=False, raw_score=10000.0)
+check("No Cage in hand → no Cage sequencing cap applied",
+      sc_no_cage > 8499.0, f"got {sc_no_cage}")
 
 print(f"\n{'=' * 62}")
 print(f"Results: {PASS} passed, {FAIL} failed")
