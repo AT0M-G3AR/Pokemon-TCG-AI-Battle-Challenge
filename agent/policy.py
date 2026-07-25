@@ -469,6 +469,31 @@ def handle_main(obs, options, min_count, max_count):
                         )
                         if has_useful_unplayed_supporter:
                             score = min(score, 8400.0)  # below Dawn's 8500 minimum
+
+                    # v3.44: Rare Candy skip-evolution soft-cap.
+                    # When Abra is in play, Alakazam is in hand, and Kadabra is missing,
+                    # Rare Candy can jump straight to Stage 2 (score 9800). But only if
+                    # we play it BEFORE attacking — once the attack resolves, Candy can't
+                    # play this turn. Cap the non-lethal attack below 9800 so Candy wins.
+                    #
+                    # Safety check: we only defer the attack if playing Candy doesn't cost
+                    # a same-turn KO. If (hand_size - 2) * 20 >= op_hp, Candy is still
+                    # lethal after its cost, so deferring is always safe. If the attack
+                    # isn't lethal at all (attack_is_lethal_this_turn is already False
+                    # here), there is no KO to protect regardless.
+                    has_playable_rare_candy = any(
+                        opt.type == OptionType.PLAY
+                        and _get_card(obs, AreaType.HAND, opt.index, my_idx) is not None
+                        and _get_card(obs, AreaType.HAND, opt.index, my_idx).id == RARE_CANDY
+                        for opt in options
+                    )
+                    if has_playable_rare_candy and field[ABRA] > 0 and hand[ALAKAZAM] > 0 and field[KADABRA] == 0:
+                        score = min(score, 9750.0)  # just under Rare Candy's 9800
+                        try:
+                            with open('retreat_block_log.txt', 'a') as f:
+                                f.write(f"CANDY_DEFER: hand={hand_size}, op_hp={op_hp}, attack_capped_to=9750\n")
+                        except:
+                            pass
             else:
                 score = 3000.0
 
