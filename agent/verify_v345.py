@@ -93,10 +93,10 @@ print("=" * 62)
 print("[1] Battle Cage play priority")
 print("=" * 62)
 
-def cage_score(in_dragapult=False, opp_has_stadium=False):
+def cage_score(in_dragapult=False, opp_has_stadium=False, our_cage_in_play=False):
     state = State()
     my = state.players[0]
-    my.active = [Card(pol.ALAKAZAM, energies=[pol.PSYCHIC_ENERGY])]
+    my.active = [Card(pol.KADABRA, energies=[pol.PSYCHIC_ENERGY])]
     my.hand = [Card(pol.BATTLE_CAGE)] + [Card(pol.PSYCHIC_ENERGY)] * 9
 
     op = state.players[1]
@@ -107,6 +107,8 @@ def cage_score(in_dragapult=False, opp_has_stadium=False):
     if opp_has_stadium:
         # API: stadium is list[Card]; opponent's non-Cage stadium (e.g. Jamming Tower = some other ID)
         state.stadium = [Card(9999)]  # non-BATTLE_CAGE ID → op_has_stadium = True
+    elif our_cage_in_play:
+        state.stadium = [Card(pol.BATTLE_CAGE)]
 
     options = [Opt(OptionType.PLAY, index=0)]  # Battle Cage in hand[0]
     for i in range(1, len(my.hand)):
@@ -120,10 +122,12 @@ def cage_score(in_dragapult=False, opp_has_stadium=False):
 sc_base     = cage_score(in_dragapult=False, opp_has_stadium=False)
 sc_dragapult= cage_score(in_dragapult=True,  opp_has_stadium=False)
 sc_stadium  = cage_score(in_dragapult=False, opp_has_stadium=True)
+sc_our_cage = cage_score(our_cage_in_play=True)
 
 check("Battle Cage baseline score ≥ 8500",   sc_base >= 8500.0,    f"got {sc_base}")
 check("Battle Cage in Dragapult = 10500",     sc_dragapult == 10500.0, f"got {sc_dragapult}")
 check("Battle Cage opp stadium = 10500",      sc_stadium == 10500.0,   f"got {sc_stadium}")
+check("Battle Cage our Cage in play = -9999", sc_our_cage == -9999.0,  f"got {sc_our_cage}")
 check("Dragapult/stadium > baseline",         sc_dragapult > sc_base,  f"{sc_dragapult} vs {sc_base}")
 
 
@@ -306,20 +310,19 @@ check("Dunsparce suppressed when 3 already on bench (dunsparce_field=3, not < 3)
       ds_score2 <= 0, f"got {ds_score2}")
 
 
-# ── Section 7: Battle Cage sequencing (v3.45b) ────────────────────────────────
+# ── Section 7: Battle Cage sequencing (v3.45b Flag 1 boost design) ────────────
 print("\n" + "=" * 62)
-print("[7] Battle Cage sequencing: attack capped when Cage is in hand")
+print("[7] Battle Cage sequencing: Cage PLAY score boosted to beat everything")
 print("=" * 62)
 
-def cage_seq_attack_score(hand_size, op_hp, raw_score=10000.0, include_cage=True):
-    """Attack score when Cage is (or isn't) in hand."""
+def cage_seq_play_score(hand_size, op_hp, include_cage=True):
+    """Play score of Battle Cage given the attack situation."""
     state = State()
     my = state.players[0]
     my.active = [Card(pol.ALAKAZAM, hp=150, energies=[pol.PSYCHIC_ENERGY])]
-    # Build hand: hand_size neutral cards + optionally Battle Cage
     my.hand = [Card(pol.PSYCHIC_ENERGY)] * hand_size
     if include_cage:
-        my.hand = [Card(pol.BATTLE_CAGE)] + my.hand  # Cage added (hand_size unchanged for dmg calc)
+        my.hand = [Card(pol.BATTLE_CAGE)] + my.hand
 
     op = state.players[1]
     op.active = [Card(999, hp=op_hp, damage=0)]
@@ -335,36 +338,26 @@ def cage_seq_attack_score(hand_size, op_hp, raw_score=10000.0, include_cage=True
     options.append(Opt(OptionType.ATTACK, index=atk_idx))
     options.append(Opt(OptionType.END, index=atk_idx + 1))
 
-    scores = get_scores(state, options, raw_attack_score=raw_score)
-    # Attack is always the second-to-last option
-    return scores[atk_idx]
+    scores = get_scores(state, options, raw_attack_score=10000.0)
+    
+    if include_cage:
+        return scores[0]  # Cage PLAY score
+    return scores[atk_idx] # fallback to return attack score if no cage
 
-# Case C: Non-lethal attack with Cage in hand → attack capped ≤ 8499
-# hand=10 → dmg=200, op_hp=300 → non-lethal
-sc_nonlethal_with_cage = cage_seq_attack_score(hand_size=10, op_hp=300, include_cage=True)
-check("Case C: non-lethal attack + Cage in hand → attack ≤ 8499",
-      sc_nonlethal_with_cage <= 8499.0, f"got {sc_nonlethal_with_cage}")
-check("Case C: attack not fully suppressed (> 0)",
-      sc_nonlethal_with_cage > 0, f"got {sc_nonlethal_with_cage}")
+# Case C: Non-lethal attack with Cage in hand → Cage boosted
+sc_nonlethal_cage = cage_seq_play_score(hand_size=10, op_hp=300, include_cage=True)
+check("Case C: non-lethal attack → Cage PLAY score boosted to 55000",
+      sc_nonlethal_cage == 55000.0, f"got {sc_nonlethal_cage}")
 
-# Case A: Lethal-with-margin — attack IS lethal AND (hand-1)*20 >= op_hp
-# hand=15 → dmg=300, op_hp=250, dmg_after_cage=280 >= 250 → safe to play Cage first
-sc_lethal_margin = cage_seq_attack_score(hand_size=15, op_hp=250, include_cage=True, raw_score=50000.0)
-check("Case A: lethal-with-margin + Cage → attack capped ≤ 8499",
-      sc_lethal_margin <= 8499.0, f"got {sc_lethal_margin}")
+# Case A: Lethal-with-margin — safe to play Cage first
+sc_lethal_margin_cage = cage_seq_play_score(hand_size=15, op_hp=250, include_cage=True)
+check("Case A: lethal-with-margin → Cage PLAY score boosted to 55000",
+      sc_lethal_margin_cage == 55000.0, f"got {sc_lethal_margin_cage}")
 
-# Case B: Lethal-would-break — (hand-1)*20 < op_hp → attack fires at full score
-# With Cage in hand: total hand = 11 (10 psychic + 1 cage)
-# hand*20 = 220 → lethal at op_hp=210
-# (hand-1)*20 = 200 < 210 → cage_is_safe = False → Case B fires, attack NOT capped
-sc_lethal_tight = cage_seq_attack_score(hand_size=10, op_hp=210, include_cage=True, raw_score=50000.0)
-check("Case B: lethal-would-break → attack NOT capped (Cage waits)",
-      sc_lethal_tight > 8499.0, f"got {sc_lethal_tight}")
-
-# Regression: no Cage in hand → no cap at all
-sc_no_cage = cage_seq_attack_score(hand_size=10, op_hp=300, include_cage=False, raw_score=10000.0)
-check("No Cage in hand → no Cage sequencing cap applied",
-      sc_no_cage > 8499.0, f"got {sc_no_cage}")
+# Case B: Lethal-would-break — Cage would break KO
+sc_lethal_tight_cage = cage_seq_play_score(hand_size=10, op_hp=210, include_cage=True)
+check("Case B: lethal-would-break → Cage PLAY score heavily discounted (-9999)",
+      sc_lethal_tight_cage == -9999.0, f"got {sc_lethal_tight_cage}")
 
 print(f"\n{'=' * 62}")
 print(f"Results: {PASS} passed, {FAIL} failed")

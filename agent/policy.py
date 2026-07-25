@@ -548,35 +548,6 @@ def handle_main(obs, options, min_count, max_count):
                     elif _munkidori_in_play(op_state) and op_hp_for_cap >= HIGH_HP_CHIP_THRESHOLD:
                         score = min(score, 1800.0)  # counter-theft makes this actively harmful
 
-                # v3.45b: Battle Cage sequencing — third instance of the supporter-before-attack
-                # family (v3.32 supporter, v3.44 Rare Candy, now Battle Cage).
-                # Battle Cage scores 8500 or 10500, but attacks score 18000-50000 and end the
-                # turn, leaving Cage unplayed while opponent's spread resolves freely.
-                #
-                # Three cases (dispatch spec):
-                #   A. Attack IS lethal AND (hand-1)*20 >= op_hp (margin safe):
-                #      Play Cage first — still KO on the re-evaluation. Cap to 8499.
-                #   B. Attack IS lethal AND (hand-1)*20 < op_hp (Cage would break KO):
-                #      Attack now, Cage next turn. Do NOT cap.
-                #   C. Attack is NOT lethal:
-                #      Cage always plays first. Cap to 8499.
-                #
-                # Cap value 8499 sits just below Cage's baseline score of 8500, so Cage
-                # wins in both 8500 and 10500 contexts. Once Cage resolves and is no longer
-                # in hand, this block doesn't fire and the attack scores at full value.
-                has_playable_cage = any(
-                    opt.type == OptionType.PLAY
-                    and _get_card(obs, AreaType.HAND, opt.index, my_idx) is not None
-                    and _get_card(obs, AreaType.HAND, opt.index, my_idx).id == BATTLE_CAGE
-                    for opt in options
-                )
-                if has_playable_cage:
-                    dmg_after_cage = (hand_size - 1) * 20
-                    cage_is_safe = dmg_after_cage >= op_hp  # still lethal after -1 card
-                    if not attack_is_lethal_this_turn or cage_is_safe:
-                        # Cases A and C: cap the attack so Cage plays first
-                        score = min(score, 8499.0)
-                    # Case B: lethal would be broken — attack fires at full score
             else:
                 score = 3000.0
 
@@ -896,37 +867,47 @@ def handle_main(obs, options, min_count, max_count):
                             score = -9999.0
 
                     elif cid == BATTLE_CAGE:
-                        # v3.45: Battle Cage play-priority logic.
-                        # Play ASAP — the turn it's drawn. It protects our bench from
-                        # damage-counter placement (Phantom Dive spread, Adrena-Brain
-                        # counter-theft, Cursed Blast) AND removes the opponent's stadium.
-                        # Core priority: 8500 — above generic trainers, played same turn drawn.
-                        # Elevated to 10500 if we are in the Dragapult matchup (Phantom Dive
-                        # spread active) OR if the opponent currently has a stadium in play
-                        # (our Cage was bumped, or they played their own stadium first).
-                        #
-                        # Stadium ownership detection: the API provides stadium as list[Card]
-                        # with no playerIndex field. We infer:
-                        #   - No stadium in play (empty list) — opponent has nothing, play normally
-                        #   - Stadium in play, NOT Battle Cage — opponent played a different
-                        #     stadium; playing our Cage removes it (always play ASAP)
-                        #   - Stadium in play, IS Battle Cage — could be ours or theirs.
-                        #     Mirror match: if we still have a second Cage in hand, the first
-                        #     was already played (ours or theirs). Second copy gets standard
-                        #     priority unless in Dragapult matchup.
                         current_stadium_list = getattr(state, 'stadium', [])
                         current_stadium_card = current_stadium_list[0] if current_stadium_list else None
-                        op_has_stadium = (
-                            current_stadium_card is not None
-                            and current_stadium_card.id != BATTLE_CAGE
+                        
+                        cage_already_in_play = (
+                            current_stadium_card is not None 
+                            and current_stadium_card.id == BATTLE_CAGE
                         )
-                        in_dragapult = _in_dragapult_matchup(op_state)
-                        if in_dragapult or op_has_stadium:
-                            # Dragapult context (Phantom Dive spread live) or opp stadium removed:
-                            # second copy gets same urgency as the first.
-                            score = 10500.0
+                        
+                        if cage_already_in_play:
+                            # Flag 2: Heavily discount if our Cage is already in play.
+                            # (Since stadium effects are symmetric, playing it over our own is a waste)
+                            score = -9999.0
                         else:
-                            score = 8500.0  # Play early regardless — bench protection + stadium removal
+                            op_has_stadium = (
+                                current_stadium_card is not None
+                                and current_stadium_card.id != BATTLE_CAGE
+                            )
+                            in_dragapult = _in_dragapult_matchup(op_state)
+                            if in_dragapult or op_has_stadium:
+                                score = 10500.0
+                            else:
+                                score = 8500.0
+                                
+                            # Flag 1: Sequencing vs Attack. Boost Cage so it plays first.
+                            # We only care about sequencing against Alakazam's Powerful Hand attack.
+                            has_attack_option = any(opt.type == OptionType.ATTACK for opt in options)
+                            if has_attack_option and active and active.id == ALAKAZAM:
+                                _hand_size = len(my_state.hand)
+                                _op_hp = _hp_remaining(op_active) if op_active else 999
+                                _is_lethal = (_hand_size * 20) >= _op_hp
+                                _dmg_after_cage = (_hand_size - 1) * 20
+                                _cage_is_safe = _dmg_after_cage >= _op_hp
+                                
+                                if _is_lethal and not _cage_is_safe:
+                                    # Case B: lethal would break. Do NOT play Cage this turn.
+                                    score = -9999.0
+                                else:
+                                    # Case A (lethal with margin) or Case C (non-lethal).
+                                    # Boost Cage above EVERYTHING (including max attack 50000)
+                                    # so it plays immediately and closes the drain window.
+                                    score = 55000.0
 
                     elif cid == XEROSIC:
                         if not supporter_played:
