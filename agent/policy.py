@@ -959,34 +959,42 @@ def handle_main(obs, options, min_count, max_count):
                             score = 9500.0
                         elif target.id == DUDUNSPARCE:
                             score = 9000.0
+                        elif target.id == SHAYMIN:
+                            if hand_is_bricked:
+                                score = 8000.0
+                            else:
+                                score = -9999.0
                         else:
                             score = -9999.0
                     else:
-                        energy_count = sum(1 for e in getattr(target, 'energyCards', []))
-                        if energy_count >= 1:
-                            # Alakazam only needs ONE energy to attack.
-                            # We MUST NOT attach more than one because keeping extra energy
-                            # in hand adds +20 damage to Powerful Hand!
-                            if target.id in (ALAKAZAM, ALAKAZAM_TWM, KADABRA, ABRA):
-                                score = -9999.0
-                            elif target.id in (DUNSPARCE, DUDUNSPARCE):
-                                score = -9999.0  # NEVER attach non-Enriching to Dunsparce line
-                            else:
-                                score = 100.0
+                        if target.id == SHAYMIN:
+                            score = -9999.0  # NEVER attach non-Enriching to Shaymin
                         else:
-                            # Attach exactly one energy to power them up
-                            if target.id in (DUNSPARCE, DUDUNSPARCE):
-                                score = -9999.0  # NEVER attach non-Enriching to Dunsparce line
-                            elif target.id == ALAKAZAM:
-                                score = 9000.0
-                            elif target.id == ALAKAZAM_TWM:
-                                score = 8000.0
-                            elif target.id == KADABRA:
-                                score = 8000.0  # Pre-load backup attacker
-                            elif target.id == ABRA:
-                                score = 3000.0
+                            energy_count = sum(1 for e in getattr(target, 'energyCards', []))
+                            if energy_count >= 1:
+                                # Alakazam only needs ONE energy to attack.
+                                # We MUST NOT attach more than one because keeping extra energy
+                                # in hand adds +20 damage to Powerful Hand!
+                                if target.id in (ALAKAZAM, ALAKAZAM_TWM, KADABRA, ABRA):
+                                    score = -9999.0
+                                elif target.id in (DUNSPARCE, DUDUNSPARCE):
+                                    score = -9999.0  # NEVER attach non-Enriching to Dunsparce line
+                                else:
+                                    score = 100.0
                             else:
-                                score = 500.0
+                                # Attach exactly one energy to power them up
+                                if target.id in (DUNSPARCE, DUDUNSPARCE):
+                                    score = -9999.0  # NEVER attach non-Enriching to Dunsparce line
+                                elif target.id == ALAKAZAM:
+                                    score = 9000.0
+                                elif target.id == ALAKAZAM_TWM:
+                                    score = 8000.0
+                                elif target.id == KADABRA:
+                                    score = 8000.0  # Pre-load backup attacker
+                                elif target.id == ABRA:
+                                    score = 3000.0
+                                else:
+                                    score = 500.0
                 else:
                     score = 0.0
             else:
@@ -1237,7 +1245,12 @@ def handle_to_hand(obs, options, min_count, max_count):
             else:
                 score = 3000.0
         elif cid == ABRA:
-            score = 7000.0 if alakazam_in_field < 3 else 1000.0
+            if field[ABRA] < 2:
+                score = 8600.0  # Beats Shaymin (8500) to prioritize establishing the line
+            elif alakazam_in_field < 3:
+                score = 7000.0
+            else:
+                score = 1000.0
         elif cid == DUDUNSPARCE:
             if field[DUNSPARCE] >= 1:
                 score = 9500.0
@@ -1513,6 +1526,21 @@ def handle_attach_to(obs, options, min_count, max_count):
                 score = 9500.0   # Best target — recycles + draws 4
             elif tid == DUDUNSPARCE:
                 score = 9000.0   # Also recycles + draws 4
+            elif tid == SHAYMIN:
+                field = _field_counts(state, my_idx)
+                hand = _hand_counts(state, my_idx)
+                have_usable_alakazam_line = (
+                    (field[ABRA] + field[KADABRA] + field[ALAKAZAM] + field.get(ALAKAZAM_TWM, 0)) > 0 
+                    or hand[ABRA] > 0
+                )
+                has_other_draw_engine_in_hand = any(
+                    hand.get(c, 0) > 0 for c in (POFFIN, POKE_PAD, HILDA, DAWN)
+                )
+                hand_is_bricked = not have_usable_alakazam_line and not has_other_draw_engine_in_hand
+                if hand_is_bricked:
+                    score = 8000.0
+                else:
+                    score = -9999.0
             else:
                 score = -9999.0  # NEVER attach Enriching to Alakazam line
 
@@ -1520,6 +1548,8 @@ def handle_attach_to(obs, options, min_count, max_count):
             my_state = state.players[my_idx]
             if my_state.deckCount <= 2:
                 score = -9999.0  # Hard block
+            elif tid == SHAYMIN:
+                score = -9999.0  # Explicit hard block
             elif tid in (ALAKAZAM, KADABRA, ABRA):
                 if _energy_count(poke) == 0:
                     
@@ -1530,7 +1560,9 @@ def handle_attach_to(obs, options, min_count, max_count):
                 score = -9999.0
 
         elif energy_id == PSYCHIC_ENERGY:
-            if tid == DUNSPARCE or tid == DUDUNSPARCE:
+            if tid == SHAYMIN:
+                score = -9999.0  # Explicit hard block
+            elif tid == DUNSPARCE or tid == DUDUNSPARCE:
                 score = -9999.0  # NEVER attach to Dunsparce line
             elif tid == ALAKAZAM:
                 if _energy_count(poke) >= 1:
