@@ -954,22 +954,13 @@ def handle_main(obs, options, min_count, max_count):
                     # elif cid == NIGHTTIME_MINE: (dead code — no longer in our hand)
 
                     elif cid == LILLIE_CLEFAIRY_EX:
-                        # Only bench if facing Dragons
-                        op_has_dragon = False
-                        if op_active and getattr(op_active, 'pokemonType', -1) == 10:  # 10 is Dragon
-                            op_has_dragon = True
-                        for p in op_bench:
-                            if getattr(p, 'pokemonType', -1) == 10:
-                                op_has_dragon = True
-                                
-                        # Or if Dragapult is in the discard
-                        if discard.get(121, 0) > 0 or any(p.id == 121 for p in (op_bench + [op_active]) if p):
-                            op_has_dragon = True
-                            
-                        if op_has_dragon:
+                        # v3.41/v3.43: bench Clefairy when a damage-blocking ability is revealed.
+                        # Gate is has_damage_blocker_revealed (Articuno, Rabsca, Poltchageist,
+                        # Skeledirge, Empoleon ex, Misty's Magikarp, Ogerpon ex, Milotic ex).
+                        if has_damage_blocker_revealed(op_state):
                             score = 9999.0
                         else:
-                            score = -9999.0  # Dead card in non-Dragon matchups
+                            score = -9999.0  # Dead card without a confirmed blocker in sight
 
                     else:
                         score = 1000.0
@@ -1286,26 +1277,16 @@ def handle_to_hand(obs, options, min_count, max_count):
             else:
                 score = 1000.0
         elif cid == LILLIE_CLEFAIRY_EX:
+            # v3.41/v3.43: fetch Clefairy at elevated priority when a damage-blocking
+            # ability is revealed (Articuno, Rabsca, Poltchageist, Skeledirge,
+            # Empoleon ex, Misty's Magikarp, Ogerpon ex, Milotic ex).
             op_idx = 1 - my_idx
             op_state = state.players[op_idx]
-            op_has_dragon = False
-            for p in list(op_state.bench) + (op_state.active if op_state.active else []):
-                if p and getattr(p, "pokemonType", -1) == 10:
-                    op_has_dragon = True
-            
-            discard = op_state.discard
-            if isinstance(discard, list):
-                if any(getattr(c, "id", 0) == 121 for c in discard):
-                    op_has_dragon = True
-            elif isinstance(discard, dict):
-                if discard.get(121, 0) > 0:
-                    op_has_dragon = True
-                    
-            if op_has_dragon:
+            if has_damage_blocker_revealed(op_state):
                 has_clefairy = any(p and p.id == LILLIE_CLEFAIRY_EX for p in state.players[my_idx].bench)
                 score = 8800.0 if not has_clefairy else 1000.0
             else:
-                score = 100.0  # Do not fetch in non-Dragon matchups
+                score = 8500.0  # Fetchable as setup card; below Abra's 8600
         elif cid == KADABRA:
             alakazam_line_missing = field[KADABRA] == 0 and field[ALAKAZAM] == 0
             if field[ABRA] >= 1 and alakazam_line_missing:
