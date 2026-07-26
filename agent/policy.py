@@ -146,6 +146,9 @@ def _hp_remaining(pokemon):
 def _energy_count(pokemon):
     return len(getattr(pokemon, 'energies', []))
 
+def _is_alakazam_ready(pokemon):
+    return pokemon and pokemon.id == ALAKAZAM and _energy_count(pokemon) >= 1
+
 
 def _deck_safety_discount(deck_count, draw_amount):
     """
@@ -565,14 +568,12 @@ def handle_main(obs, options, min_count, max_count):
                             op_is_fighting = True
                             break
                             
-                alakazam_ready = any(
-                    p and p.id == ALAKAZAM and _energy_count(p) >= 1
-                    for p in my_state.bench if p
-                )
-                has_better_pivot = alakazam_ready
+                has_better_pivot = False
                 for p in my_state.bench:
                     if p:
-                        if not op_is_fighting and p.id in (DUNSPARCE, DUDUNSPARCE):
+                        if _is_alakazam_ready(p):
+                            has_better_pivot = True
+                        elif not op_is_fighting and p.id in (DUNSPARCE, DUDUNSPARCE):
                             has_better_pivot = True
                             
                 if has_better_pivot:
@@ -605,9 +606,8 @@ def handle_main(obs, options, min_count, max_count):
                     score = -9999.0
                 else:
                     alakazam_ready = any(
-                        p and p.id == ALAKAZAM and _energy_count(p) >= 1
+                        _is_alakazam_ready(p)
                         for p in ([active] if active else []) + list(my_state.bench)
-                        if p
                     )
                     backfill_available = sum(
                         1 for p in my_state.bench
@@ -1048,15 +1048,15 @@ def handle_main(obs, options, min_count, max_count):
                 # is ready to take over. Status conditions are NOT a valid reason
                 # — Run Away Draw is the correct cure, not a plain retreat.
                 alakazam_fully_ready = any(
-                    p and p.id == ALAKAZAM and _energy_count(p) >= 1
-                    for p in my_state.bench if p
+                    _is_alakazam_ready(p)
+                    for p in my_state.bench
                 )
                 score = 4000.0 if alakazam_fully_ready else -9999.0
             elif active and active.id not in (ALAKAZAM, ALAKAZAM_TWM):
                 # Get Alakazam to active
                 alakazam_ready = any(
-                    p and p.id == ALAKAZAM and _energy_count(p) >= 1
-                    for p in my_state.bench if p
+                    _is_alakazam_ready(p)
+                    for p in my_state.bench
                 )
                 base_score = 4000.0 if alakazam_ready else 500.0
 
