@@ -99,10 +99,20 @@ with patch('policy._get_card',     side_effect=mock_get_card), \
     scores = pol.handle_main(obs, [Opt(OptionType.ATTACK, 0, AreaType.ACTIVE)], 1, 1)
     check("1a. Abra switch, safe tank present (1900.0)", scores[0] == 1900.0, f"Score: {scores[0]}")
 
-    # ── 1b. Abra switch — fighting opponent ──────────────────────────────────
+    # ── 1b. Abra switch — fighting opponent vs Dunsparce ─────────────────────
     obs.current.players[1].active = [Card(999, pokemonType=6)]  # fighting
     scores = pol.handle_main(obs, [Opt(OptionType.ATTACK, 0, AreaType.ACTIVE)], 1, 1)
-    check("1b. Abra switch, fighting opp (1000.0)", scores[0] == 1000.0, f"Score: {scores[0]}")
+    check("1b. Abra switch, fighting opp vs Dunsparce (1000.0)", scores[0] == 1000.0, f"Score: {scores[0]}")
+
+    # ── 1b2. Abra switch — fighting opponent vs Dudunsparce ──────────────────
+    obs.current.players[0].bench  = [Card(DUDUNSPARCE)]
+    scores = pol.handle_main(obs, [Opt(OptionType.ATTACK, 0, AreaType.ACTIVE)], 1, 1)
+    check("1b2. Abra switch, fighting opp vs Dudunsparce (1000.0)", scores[0] == 1000.0, f"Score: {scores[0]}")
+
+    # ── 1b3. Abra switch — fighting opponent vs ready Alakazam ───────────────
+    obs.current.players[0].bench  = [Card(ALAKAZAM, energies=[1])]
+    scores = pol.handle_main(obs, [Opt(OptionType.ATTACK, 0, AreaType.ACTIVE)], 1, 1)
+    check("1b3. Abra switch, fighting opp vs ready Alakazam (1900.0)", scores[0] == 1900.0, f"Score: {scores[0]}")
 
     # ── 1c. Abra switch — NO tank, NO fighting (direct inversion test) ───────
     obs = Obs()
