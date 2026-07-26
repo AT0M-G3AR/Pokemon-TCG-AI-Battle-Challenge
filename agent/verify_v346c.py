@@ -114,6 +114,21 @@ with patch('policy._get_card',     side_effect=mock_get_card), \
     check("1c. Abra switch, no tank, no fighting (1000.0 < 1900.0)",
           scores[0] == 1000.0 and scores[0] < 1900.0, f"Score: {scores[0]}")
 
+
+    # ── 1d. Abra switch — ready Alakazam present ─────────────────────────────
+    obs = Obs()
+    obs.current.players[0].active = [Card(ABRA)]
+    obs.current.players[0].hand   = [Card(1)] * 5
+    obs.current.players[0].bench  = [Card(ALAKAZAM, energies=[1])] # 1 energy = ready
+    obs.current.players[1].active = [Card(999, pokemonType=0)]
+    scores = pol.handle_main(obs, [Opt(OptionType.ATTACK, 0, AreaType.ACTIVE)], 1, 1)
+    check("1d. Abra switch, ready Alakazam (1900.0)", scores[0] == 1900.0, f"Score: {scores[0]}")
+
+    # ── 1e. Abra switch — unready Alakazam present ───────────────────────────
+    obs.current.players[0].bench  = [Card(ALAKAZAM, energies=[])] # 0 energy = not ready
+    scores = pol.handle_main(obs, [Opt(OptionType.ATTACK, 0, AreaType.ACTIVE)], 1, 1)
+    check("1e. Abra switch, unready Alakazam (1000.0)", scores[0] == 1000.0, f"Score: {scores[0]}")
+
     # ── 2. handle_to_active: Dunsparce preferred over Abra ───────────────────
     obs = Obs()
     obs.current.players[0].bench  = [Card(ABRA), Card(DUNSPARCE)]

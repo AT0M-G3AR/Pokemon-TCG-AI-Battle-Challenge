@@ -565,12 +565,14 @@ def handle_main(obs, options, min_count, max_count):
                             op_is_fighting = True
                             break
                             
-                has_better_pivot = False
+                alakazam_ready = any(
+                    p and p.id == ALAKAZAM and _energy_count(p) >= 1
+                    for p in my_state.bench if p
+                )
+                has_better_pivot = alakazam_ready
                 for p in my_state.bench:
                     if p:
-                        if p.id in (ALAKAZAM, ALAKAZAM_TWM):
-                            has_better_pivot = True
-                        elif not op_is_fighting and p.id in (DUNSPARCE, DUDUNSPARCE):
+                        if not op_is_fighting and p.id in (DUNSPARCE, DUDUNSPARCE):
                             has_better_pivot = True
                             
                 if has_better_pivot:
