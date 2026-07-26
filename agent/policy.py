@@ -97,6 +97,14 @@ MIST_ENERGY     = 11   # Blocks damage counter effects — must hammer this
 ALAKAZAM_LINE = {ABRA, KADABRA, ALAKAZAM, ALAKAZAM_TWM}
 DUNSPARCE_LINE = {DUNSPARCE, DUDUNSPARCE}
 
+# v3.46c: Verified bench attackers (excluding ex/V exclusive ones like Shaymin 45 and Zeraora 377)
+DIRECT_BENCH_ATTACKER_IDS = {
+    83, 108, 140, 153, 243, 258, 298, 299, 412, 585,
+    591, 648, 665, 682, 759, 774, 805, 867, 889, 928,
+    946, 984, 1005, 1021, 1031, 1064
+}
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -548,6 +556,28 @@ def handle_main(obs, options, min_count, max_count):
                     elif _munkidori_in_play(op_state) and op_hp_for_cap >= HIGH_HP_CHIP_THRESHOLD:
                         score = min(score, 1800.0)  # counter-theft makes this actively harmful
 
+            elif active and active.id == ABRA:
+                # v3.33/v3.46c: Abra-attack-as-forced-switch
+                op_is_fighting = False
+                if op_state:
+                    for p in [op_active] + list(op_state.bench):
+                        if p and (getattr(p, 'pokemonType', -1) == 6 or p.id in (678, 674)):
+                            op_is_fighting = True
+                            break
+                            
+                has_better_pivot = False
+                for p in my_state.bench:
+                    if p:
+                        if p.id in (ALAKAZAM, ALAKAZAM_TWM):
+                            has_better_pivot = True
+                        elif not op_is_fighting and p.id in (DUNSPARCE, DUDUNSPARCE):
+                            has_better_pivot = True
+                            
+                if has_better_pivot:
+                    score = 1900.0  # Just under random bench (2000), making it the absolute last useful setup action
+                else:
+                    score = 1000.0  # No tank to switch to (Abra swaps for Abra), avoid using it
+
             else:
                 score = 3000.0
 
@@ -965,7 +995,16 @@ def handle_main(obs, options, min_count, max_count):
                             else:
                                 score = -9999.0
                         else:
-                            score = -9999.0
+                            # v3.33/v3.46c Active-Fallback: Only fires if no Dunsparce line is in play
+                            has_dunsparce_line = any(
+                                p and p.id in (DUNSPARCE, DUDUNSPARCE)
+                                for p in list(my_state.bench) + (my_state.active if my_state.active else [])
+                            )
+                            is_active = (o.inPlayArea == AreaType.ACTIVE)
+                            if not has_dunsparce_line and is_active:
+                                score = 8100.0
+                            else:
+                                score = -9999.0
                     else:
                         if target.id == SHAYMIN:
                             score = -9999.0  # NEVER attach non-Enriching to Shaymin
@@ -1235,7 +1274,38 @@ def handle_to_hand(obs, options, min_count, max_count):
             score = 9000.0 if alakazam_in_field >= 1 else 5000.0
         elif cid == SHAYMIN:
             already_has_shaymin = any(p and p.id == SHAYMIN for p in state.players[my_idx].bench)
-            score = 8500.0 if not already_has_shaymin else 1000.0
+            op_idx = 1 - my_idx
+            op_has_bench_attacker = any(
+                p and p.id in DIRECT_BENCH_ATTACKER_IDS 
+                for p in list(state.players[op_idx].bench) + (state.players[op_idx].active if state.players[op_idx].active else [])
+            )
+            if not already_has_shaymin and op_has_bench_attacker:
+                score = 8700.0  # Beats Abra (8600)
+            elif not already_has_shaymin:
+                score = 8500.0  # Below Abra
+            else:
+                score = 1000.0
+        elif cid == LILLIE_CLEFAIRY_EX:
+            op_idx = 1 - my_idx
+            op_state = state.players[op_idx]
+            op_has_dragon = False
+            for p in list(op_state.bench) + (op_state.active if op_state.active else []):
+                if p and getattr(p, "pokemonType", -1) == 10:
+                    op_has_dragon = True
+            
+            discard = op_state.discard
+            if isinstance(discard, list):
+                if any(getattr(c, "id", 0) == 121 for c in discard):
+                    op_has_dragon = True
+            elif isinstance(discard, dict):
+                if discard.get(121, 0) > 0:
+                    op_has_dragon = True
+                    
+            if op_has_dragon:
+                has_clefairy = any(p and p.id == LILLIE_CLEFAIRY_EX for p in state.players[my_idx].bench)
+                score = 8800.0 if not has_clefairy else 1000.0
+            else:
+                score = 100.0  # Do not fetch in non-Dragon matchups
         elif cid == KADABRA:
             alakazam_line_missing = field[KADABRA] == 0 and field[ALAKAZAM] == 0
             if field[ABRA] >= 1 and alakazam_line_missing:
