@@ -59,6 +59,19 @@ tools/test_v329_replay_trace.py
 
 # One-off root-level scripts
 update_deck.py
+download_and_tally*.py
+tally_local.py
+dump_attackers.py
+test_v347_states.py
+
+# One-off debug/scratch scripts in agent/ (real verify_v3XX.py stay tracked)
+agent/debug.py
+agent/print_test*.py
+agent/scan_*.py
+agent/verify_v346c_simple.py
+
+# Kaggle episode replay logs (data, not source)
+episode-*.json
 
 # Environment
 .env
