@@ -145,6 +145,26 @@ def _prize_count(pokemon):
     return 1
 
 
+def _search_enables_game_win(hand_size, draw_amount, target_effective_hp,
+                             prizes_remaining, target):
+    """
+    v3.48 Rule B — computable lethal exception. NEVER reuse `is_lethal` here:
+    `is_lethal` fires when the agent should be ATTACKING, this fires when
+    drawing/searching would CONVERT a non-lethal board into a game-winning KO.
+
+    Powerful Hand deals hand_size * 20, so drawing raises damage. Fires only
+    when BOTH hold:
+      - search_enables_lethal: not lethal now, but lethal after `draw_amount`
+      - wins_game: taking this target's prizes empties our prize count
+    """
+    search_enables_lethal = (
+        (hand_size + draw_amount) * 20 >= target_effective_hp
+        and hand_size * 20 < target_effective_hp
+    )
+    wins_game = prizes_remaining <= _prize_count(target)
+    return search_enables_lethal and wins_game
+
+
 def _hp_remaining(pokemon):
     return max(0, pokemon.hp - getattr(pokemon, 'damage', 0))
 

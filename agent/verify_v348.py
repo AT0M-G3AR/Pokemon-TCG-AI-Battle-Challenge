@@ -12,7 +12,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import unittest
 import policy
 from policy import (
-    _prize_count, _target_score, DAMAGE_BLOCKING_ABILITY_IDS,
+    _prize_count, _target_score, _search_enables_game_win,
+    DAMAGE_BLOCKING_ABILITY_IDS,
     ALAKAZAM, LILLIE_CLEFAIRY_EX, CARD_DB,
 )
 
@@ -54,9 +55,42 @@ class Test6_PrizeValue(unittest.TestCase):
         self.assertEqual(_prize_count(PokeMock(9_999_999)), 1)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# TEST 5 — Lethal-exception precision (rule B)
+# _search_enables_game_win fires ONLY when we go non-lethal -> lethal by drawing
+# AND that KO wins the game. Never on an already-lethal board.
+# ─────────────────────────────────────────────────────────────────────────────
+class Test5_LethalException(unittest.TestCase):
+    def test_fires_when_draw_enables_winning_lethal(self):
+        # hand 5 (100 dmg) not lethal vs 150 HP; +3 draw -> 160 >= 150 lethal.
+        # Target is a 2-prize ex, and we have 2 prizes left -> KO wins.
+        target = PokeMock(DRAGAPULT_EX, hp=150)
+        self.assertTrue(_search_enables_game_win(
+            hand_size=5, draw_amount=3, target_effective_hp=150,
+            prizes_remaining=2, target=target))
+
+    def test_no_fire_when_lethal_but_not_winning_prize(self):
+        # Same draw-enables-lethal, but target is a 1-prize plain and we still
+        # have 3 prizes to take -> KO does NOT win -> must not fire.
+        target = PokeMock(PLAIN_ALAKAZAM, hp=150)
+        self.assertFalse(_search_enables_game_win(
+            hand_size=5, draw_amount=3, target_effective_hp=150,
+            prizes_remaining=3, target=target))
+
+    def test_no_fire_when_already_lethal(self):
+        # hand 10 (200 dmg) already lethal vs 150 HP. is_lethal would fire and
+        # the agent should ATTACK, not search -> exception must NOT fire even
+        # though the KO would win (2-prize ex, 2 prizes left).
+        target = PokeMock(DRAGAPULT_EX, hp=150)
+        self.assertFalse(_search_enables_game_win(
+            hand_size=10, draw_amount=3, target_effective_hp=150,
+            prizes_remaining=2, target=target))
+
+
 def _run_labelled():
     """Run each TestCase class separately and print a per-rule line."""
     labels = {
+        "Test5_LethalException": "Test 5 — Lethal-exception precision (rule B)",
         "Test6_PrizeValue": "Test 6 — Prize value correctness (rule D)",
     }
     loader = unittest.TestLoader()
