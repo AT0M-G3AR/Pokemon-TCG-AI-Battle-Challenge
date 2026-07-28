@@ -133,10 +133,16 @@ def _pick_best(scores, min_count, max_count, allow_empty=False):
 
 
 def _prize_count(pokemon):
+    # v3.48 Rule D — prize value from confirmed Card schema booleans, never
+    # string matching. .megaEx and .ex are real fields present on every card.
     data = CARD_DB.get(pokemon.id)
     if not data:
         return 1
-    return 3 if getattr(data, 'megaEx', False) else 2 if getattr(data, 'ex', False) else 1
+    if data.megaEx:
+        return 3
+    if data.ex:
+        return 2
+    return 1
 
 
 def _hp_remaining(pokemon):
