@@ -50,7 +50,6 @@ ALAKAZAM_TWM = 245   # Strange Hacking tech
 DUNSPARCE    = 65    # TEF — zero retreat cost
 DUDUNSPARCE  = 66
 SHAYMIN      = 343
-TELEPATHIC_ENERGY = 19
 
 POFFIN        = 1086
 RARE_CANDY    = 1079
@@ -105,25 +104,6 @@ DIRECT_BENCH_ATTACKER_IDS = {
     946, 984, 1005, 1021, 1031, 1064
 }
 
-# Build name index for deep evolution walks
-_NAME_TO_IDS = {}
-for cid, data in CARD_DB.items():
-    if data and getattr(data, 'name', None):
-        _NAME_TO_IDS.setdefault(data.name, []).append(cid)
-
-PRE_THREAT_IDS = set()
-def _build_pre_threats(current_ids):
-    for cid in current_ids:
-        data = CARD_DB.get(cid)
-        if not data: continue
-        evo_name = getattr(data, 'evolvesFrom', None)
-        if evo_name and evo_name in _NAME_TO_IDS:
-            for pid in _NAME_TO_IDS[evo_name]:
-                if pid not in PRE_THREAT_IDS:
-                    PRE_THREAT_IDS.add(pid)
-                    _build_pre_threats([pid])
-_build_pre_threats(list(DIRECT_BENCH_ATTACKER_IDS))
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
@@ -156,26 +136,8 @@ def _prize_count(pokemon):
     data = CARD_DB.get(pokemon.id)
     if not data:
         return 1
-    if getattr(data, 'megaEx', False):
-        return 3
-    elif getattr(data, 'ex', False):
-        return 2
-    return 1
+    return 3 if getattr(data, 'megaEx', False) else 2 if getattr(data, 'ex', False) else 1
 
-
-def _check_enables_win(my_state, op_state, draw_amount):
-    op_active = op_state.active[0] if op_state.active else None
-    if not op_active:
-        return False
-    target_prize_value = _prize_count(op_active)
-    return _search_enables_game_win(
-        hand_size=len(my_state.hand),
-        draw_amount=draw_amount,
-        op_active=op_active,
-        my_prizes_left=my_state.prizeCount,
-        target_prize_value=target_prize_value,
-        op_state=op_state
-    )
 
 def _hp_remaining(pokemon):
     return max(0, pokemon.hp - getattr(pokemon, 'damage', 0))
@@ -188,56 +150,26 @@ def _is_alakazam_ready(pokemon):
     return pokemon and pokemon.id == ALAKAZAM and _energy_count(pokemon) >= 1
 
 
-def _search_enables_game_win(hand_size, draw_amount, op_active, my_prizes_left, target_prize_value, op_state):
-    if not op_active:
-        return False
-        
-    # Check for damage blockers (Mist Energy or Abilities like Repelling Veil)
-    mist_on_opponent = any(
-        getattr(e, 'id', 0) == MIST_ENERGY for e in getattr(op_active, 'energyCards', [])
-    )
-    veil_in_play = False
-    for p in op_state.active + op_state.bench:
-        if p and p.id in DAMAGE_BLOCKING_ABILITY_IDS:
-            veil_in_play = True
-            break
-            
-    if mist_on_opponent or veil_in_play:
-        return False
-        
-    op_hp = _hp_remaining(op_active)
-    search_enables_lethal = (hand_size + draw_amount) * 20 >= op_hp and (hand_size * 20) < op_hp
-    wins_game = my_prizes_left <= target_prize_value
-    return search_enables_lethal and wins_game
-
-
-def _deck_safety_discount(deck_count, immediate_draw, net_draw=None, enables_win=False):
+def _deck_safety_discount(deck_count, draw_amount):
     """
     Graduated penalty for drawing cards when deck size is low.
     - Danger Zone: Drawing more cards than are in the deck (or leaving 0).
     - Critical: Leaving 1 card in the deck.
     - Warning: Leaving 2-3 cards in the deck.
     """
-    if net_draw is None:
-        net_draw = immediate_draw
-        
-    immediate_remaining = deck_count - immediate_draw
-    net_remaining = deck_count - net_draw
-    
+    remaining = deck_count - draw_amount
     discount = 0.0
-    if immediate_remaining < 0:
-        discount = -100000.0  # Absolute block: drawing more than we have loses instantly
-    elif enables_win:
-        discount = 0.0  # Exception: this search wins the game this turn
-    elif net_remaining <= 1:
-        discount = -50000.0
-    elif net_remaining <= 3:
-        discount = -20000.0
+    if remaining <= 0:
+        discount = -9999.0
+    elif remaining <= 1:
+        discount = -5000.0
+    elif remaining <= 3:
+        discount = -2000.0
         
     if discount < 0:
         try:
             with open('deck_safety_log.txt', 'a') as f:
-                f.write(f"DECK_SAFETY_FIRED: deck={deck_count}, draw={immediate_draw}, net={net_draw}, rem={immediate_remaining}, disc={discount}\n")
+                f.write(f"DECK_SAFETY_FIRED: deck={deck_count}, draw={draw_amount}, rem={remaining}, disc={discount}\n")
         except:
             pass
     return discount
@@ -352,20 +284,15 @@ def _lethal_now(state, my_idx, op_idx):
 def _target_score(pokemon, my_prizes_left, current_damage=0):
     if pokemon is None:
         return -9999.0
-        
     prizes = _prize_count(pokemon)
     hp_left = _hp_remaining(pokemon)
-    score = 0.0
-
-    # 1. Blocker gate first (preserves existing v3.43 logic)
-    if pokemon.id in DAMAGE_BLOCKING_ABILITY_IDS:
-        score += 5000.0  # v3.43 blocker-snipe bonus — highest matchup bonus
-
-    # 2. KO bonus
+    score = prizes * 1000.0
+    # Massively prioritize things we can actually kill
     if current_damage > 0 and hp_left <= current_damage:
         score += 10000.0
-        # 3. Prize weighting ONLY if we can secure the KO
-        score += prizes * 3000.0
+
+    if pokemon.id in DAMAGE_BLOCKING_ABILITY_IDS:
+        score += 5000.0  # v3.43 blocker-snipe bonus — highest matchup bonus
 
     # v3.45 Rule C — Drakloak snipe priority.
     # Every dead Drakloak is a 320 HP / 2-prize Dragapult that never happens.
@@ -376,32 +303,17 @@ def _target_score(pokemon, my_prizes_left, current_damage=0):
     # a Boss's Orders at this stage of development.
     if pokemon.id == DRAKLOAK and current_damage > 0 and hp_left <= current_damage:
         score += 3000.0  # sits below blocker bonus (5000), above generic
-        
-    # Small energy tiebreaker (so if two targets are identical, pick the one with energy)
+
     score += _energy_count(pokemon) * 150.0
-    
-    # HP tiebreaker: prioritize lower HP targets
     score -= hp_left * 0.3
-    
-    # Instant win priority: if killing this target wins the game, override everything else
     if prizes >= my_prizes_left and current_damage > 0 and hp_left <= current_damage:
         score += 50000.0
-        
     return score
 
 def has_damage_blocker_revealed(op_state):
     op_cards = op_state.active + op_state.bench
     for p in op_cards:
         if p and p.id in DAMAGE_BLOCKING_ABILITY_IDS:
-            return True
-    return False
-
-def _has_bench_threat(op_state):
-    op_cards = op_state.active + op_state.bench
-    for p in op_cards:
-        if not p:
-            continue
-        if p.id in DIRECT_BENCH_ATTACKER_IDS or p.id in PRE_THREAT_IDS:
             return True
     return False
 
@@ -719,9 +631,7 @@ def handle_main(obs, options, min_count, max_count):
                         score = -9999.0  # suppress — hold as tank instead
                     
                     if score > 0:
-                        enables_win = _check_enables_win(my_state, op_state, 3)
-                        net_draw = 3 - (2 + _energy_count(card))
-                        score += _deck_safety_discount(my_state.deckCount, immediate_draw=3, net_draw=net_draw, enables_win=enables_win)
+                        score += _deck_safety_discount(my_state.deckCount, 3)
                         if score < 0:
                             score = -9999.0
             elif card and card.id in (KADABRA, ALAKAZAM):
@@ -839,11 +749,9 @@ def handle_main(obs, options, min_count, max_count):
                         # Poffin searches for HP <= 70. Shaymin has 80 HP, so it CANNOT be searched by Poffin!
                         if bench_space >= 1:
                             score = 7500.0
-                            if bench_count == 0:
-                                score += 2000.0  # ITEM 2: Bench-fill prioritisation
                         else:
                             score = -9999.0
-                        score += _deck_safety_discount(my_state.deckCount, 2, enables_win=_check_enables_win(my_state, op_state, 2))
+                        score += _deck_safety_discount(my_state.deckCount, 2)
 
                     elif cid == DAWN:
                         if not supporter_played:
@@ -852,9 +760,7 @@ def handle_main(obs, options, min_count, max_count):
                                 score = 9000.0  # Even higher — get Fairy Zone online ASAP
                             else:
                                 score = 8500.0   # ALWAYS play Dawn — unconditional
-                            if bench_count == 0:
-                                score += 2000.0  # ITEM 2: Bench-fill prioritisation
-                            score += _deck_safety_discount(my_state.deckCount, 3, enables_win=_check_enables_win(my_state, op_state, 3))
+                            score += _deck_safety_discount(my_state.deckCount, 3)
                         else:
                             score = -9999.0
 
@@ -866,7 +772,7 @@ def handle_main(obs, options, min_count, max_count):
                                 score = 7500.0
                             else:
                                 score = 4000.0
-                            score += _deck_safety_discount(my_state.deckCount, 2, enables_win=_check_enables_win(my_state, op_state, 2))
+                            score += _deck_safety_discount(my_state.deckCount, 2)
                         else:
                             score = -9999.0
 
@@ -963,9 +869,7 @@ def handle_main(obs, options, min_count, max_count):
                             score = 6000.0
                         else:
                             score = 5000.0  # Just getting Dudunsparce is always good
-                        if bench_count == 0:
-                            score += 2000.0  # ITEM 2: Bench-fill prioritisation
-                        score += _deck_safety_discount(my_state.deckCount, 1, enables_win=_check_enables_win(my_state, op_state, 1))
+                        score += _deck_safety_discount(my_state.deckCount, 1)
 
                     elif cid == NIGHT_STRETCH:
                         # Recover Pokémon from discard
@@ -1094,12 +998,6 @@ def handle_main(obs, options, min_count, max_count):
                                 score = 8100.0
                             else:
                                 score = -9999.0
-                    elif card.id == TELEPATHIC_ENERGY:
-                        bench_empty = all(p is None for p in my_state.bench)
-                        if bench_empty and target.id in (ABRA, KADABRA, ALAKAZAM, ALAKAZAM_TWM) and o.inPlayArea == AreaType.ACTIVE:
-                            score = 15000.0  # ITEM 2: Bench-fill prioritisation
-                        else:
-                            score = 100.0  # Let generic energy checks handle it if not for bench fill
                     else:
                         if target.id == SHAYMIN:
                             score = -9999.0  # NEVER attach non-Enriching to Shaymin
@@ -1221,15 +1119,15 @@ def handle_activate(obs, options, min_count, max_count):
                            o.index, my_idx)
             
             if card and card.id == DUDUNSPARCE:
-                enables_win = _check_enables_win(state.players[my_idx], state.players[1 - my_idx], 3)
-                base_score = 9000.0
-                net_draw = 3 - (2 + _energy_count(card))
-                score = base_score + _deck_safety_discount(state.players[my_idx].deckCount, immediate_draw=3, net_draw=net_draw, enables_win=enables_win)
+                if is_lethal:
+                    score = -9999.0  # Don't draw if we're already lethal!
+                else:
+                    base_score = 9000.0
+                    score = base_score + _deck_safety_discount(state.players[my_idx].deckCount, 3)
             elif card and card.id in (KADABRA, ALAKAZAM):
                 # Psychic Draw activation
-                enables_win = _check_enables_win(state.players[my_idx], state.players[1 - my_idx], 2)
                 base_score = 9000.0
-                score = base_score + _deck_safety_discount(state.players[my_idx].deckCount, 2, enables_win=enables_win)
+                score = base_score + _deck_safety_discount(state.players[my_idx].deckCount, 2)
             elif card and card.id == ABRA:
                 # Teleporter ACTIVATE confirmation
                 bench_empty = all(p is None for p in state.players[my_idx].bench)
@@ -1370,7 +1268,10 @@ def handle_to_hand(obs, options, min_count, max_count):
         elif cid == SHAYMIN:
             already_has_shaymin = any(p and p.id == SHAYMIN for p in state.players[my_idx].bench)
             op_idx = 1 - my_idx
-            op_has_bench_attacker = _has_bench_threat(state.players[op_idx])
+            op_has_bench_attacker = any(
+                p and p.id in DIRECT_BENCH_ATTACKER_IDS 
+                for p in list(state.players[op_idx].bench) + (state.players[op_idx].active if state.players[op_idx].active else [])
+            )
             if not already_has_shaymin and op_has_bench_attacker:
                 score = 8700.0  # Beats Abra (8600)
             elif not already_has_shaymin:
@@ -1976,15 +1877,6 @@ def _sanity_check(obs, options, scores):
                            for opt in options)
             if has_attack:
                 scores[i] = -9999.0  # Never pass when we can attack
-            elif bench_count == 0:
-                has_basic = False
-                for c in my_state.hand:
-                    data = CARD_DB.get(c.id)
-                    if data and getattr(data, 'basic', False):
-                        has_basic = True
-                        break
-                if has_basic:
-                    scores[i] = -50000.0  # ITEM 2: Bench-out guard
 
         # RULE 3: Never use Run Away Draw if it would empty the board
         # (Dudunsparce shuffles itself back — safe unless it's the only Pokemon)
