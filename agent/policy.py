@@ -307,34 +307,81 @@ def _lethal_now(state, my_idx, op_idx):
     return False
 
 
-def _target_score(pokemon, my_prizes_left, current_damage=0):
+def _target_score(pokemon, my_prizes_left, current_damage=0, blocker_gate=False):
+    """
+    Score an opponent Pokémon as an attack/Boss's-Orders target.
+
+    v3.48 rebuild (rules A, C, E):
+      A. HARD GATE — when `blocker_gate` is set (a damage blocker is in play and
+         our active is the effect-based Alakazam), the blocker is the ONLY
+         productive target; prize weighting is suppressed entirely and we stop.
+      C. Ordering: (1) blocker gate; (2) can we KO this turn?; (3) among
+         killable targets, prefer higher prize value.
+      E. The prize term is ADDED (never assigned) and only among killable
+         targets, so the +5000 blocker bonus and HP tiebreak always survive.
+    """
     if pokemon is None:
         return -9999.0
-    prizes = _prize_count(pokemon)
-    hp_left = _hp_remaining(pokemon)
-    score = prizes * 1000.0
-    # Massively prioritize things we can actually kill
-    if current_damage > 0 and hp_left <= current_damage:
+
+    hp_left  = _hp_remaining(pokemon)
+    killable = current_damage > 0 and hp_left <= current_damage
+    is_blocker = pokemon.id in DAMAGE_BLOCKING_ABILITY_IDS
+
+    # ── Rule A: HARD GATE — stop here when triggered ────────────────────────
+    if blocker_gate:
+        if is_blocker:
+            score = 5000.0                       # blocker is the only real target
+            if killable:
+                score += 10000.0
+            score += _energy_count(pokemon) * 150.0
+            score -= hp_left * 0.3
+            return score
+        # Non-blocker while a blocker is up and our active is effect-based:
+        # Powerful Hand cannot touch it. Keep it far below the blocker, and
+        # apply NO prize weighting (that is the whole point of the gate).
+        return -1000.0 - hp_left * 0.3
+
+    # ── Rule C ordering (gate off) ──────────────────────────────────────────
+    score = 0.0
+    if is_blocker:
+        score += 5000.0  # v3.43 blocker-snipe bonus (preserved, additive)
+
+    if killable:
+        # Step 2 — killable THIS turn.
         score += 10000.0
+        # Step 3 — among killable targets, prefer higher prize value (Rule E:
+        # ADD, never assign). Mega ex (3) > ex (2) > plain (1).
+        prizes = _prize_count(pokemon)
+        score += prizes * 3000.0
+        # v3.45 Rule C — Drakloak snipe ordering (killable-gated): a dead
+        # Drakloak is a 320 HP / 2-prize Dragapult that never happens.
+        if pokemon.id == DRAKLOAK:
+            score += 3000.0
+        # Game-winning KO: taking this target's prizes empties our prize count.
+        if prizes >= my_prizes_left:
+            score += 50000.0
 
-    if pokemon.id in DAMAGE_BLOCKING_ABILITY_IDS:
-        score += 5000.0  # v3.43 blocker-snipe bonus — highest matchup bonus
-
-    # v3.45 Rule C — Drakloak snipe priority.
-    # Every dead Drakloak is a 320 HP / 2-prize Dragapult that never happens.
-    # Bonus fires only when we can KO it this turn (already gated by the +10000
-    # lethal block above). The explicit per-ID bonus provides ordering:
-    #   blocker (+5000) > Drakloak (+3000) > generic (+0)
-    # Dreepy is deliberately excluded — two turns from Dragapult, often not worth
-    # a Boss's Orders at this stage of development.
-    if pokemon.id == DRAKLOAK and current_damage > 0 and hp_left <= current_damage:
-        score += 3000.0  # sits below blocker bonus (5000), above generic
-
+    # Tiebreaks (always additive).
     score += _energy_count(pokemon) * 150.0
     score -= hp_left * 0.3
-    if prizes >= my_prizes_left and current_damage > 0 and hp_left <= current_damage:
-        score += 50000.0
     return score
+
+
+def _blocker_gate_active(op_state, my_active):
+    """
+    v3.48 Rule A gate decision. True iff a damage blocker (Repelling Veil, etc.)
+    is in play AND our active attacker is the effect-based Alakazam — Powerful
+    Hand literally cannot damage the blocker's target, so it is the only
+    productive play. Lillie's Clefairy ex is EXEMPT: Full Moon Rondo is direct
+    damage and is not blocked.
+    """
+    if not my_active:
+        return False
+    if my_active.id == LILLIE_CLEFAIRY_EX:   # exemption — direct-damage attacker
+        return False
+    if my_active.id != ALAKAZAM:             # gate only guards the effect attacker
+        return False
+    return has_damage_blocker_revealed(op_state)
 
 def has_damage_blocker_revealed(op_state):
     op_cards = op_state.active + op_state.bench
