@@ -1,14 +1,24 @@
 """
-PTCG AI Battle Challenge — v3 Alakazam + Dudunsparce Policy
+PTCG AI Battle Challenge — v3.48 Alakazam + Dudunsparce Policy
 AT0M-G3AR | Gary & Team | 2026
 
-DECK (v3.45): Alakazam (Powerful Hand) + Dudunsparce (Run Away Draw)
+DECK (v3.48): Alakazam (Powerful Hand) + Dudunsparce (Run Away Draw)
 WIN CONDITION: Powerful Hand — 2 damage counters per card in hand (uncapped)
 
 THREE CORE RULES:
   1. Calculate lethal BEFORE playing any cards — stop playing once KO is secured
   2. Dudunsparce Run Away Draw is always top priority (score 15000)
   3. Enhanced Hammer removes Mist Energy before attacking
+
+v3.48 — PRIZE-VALUE WEIGHTING + BOSS'S ORDERS BYPASS (target selection):
+  A. Blocker gate is a HARD gate — while a damage blocker is in play and our
+     active is effect-based Alakazam, it is the only productive target; prize
+     weighting is suppressed. Lillie's Clefairy ex (direct damage) is exempt.
+  B. Game-winning lethal is COMPUTABLE (_search_enables_game_win), never
+     is_lethal: fire only when drawing converts non-lethal -> winning KO.
+  C/E. Among killable targets prefer higher prize value (Mega ex 3 > ex 2 >
+     plain 1); the prize term ADDS to the +5000 blocker bonus and HP tiebreak.
+  D. Prize value from Card schema booleans (.megaEx / .ex), never name matching.
 
 KEY CARD IDS:
   Pokémon:  Abra=741, Kadabra=742, Alakazam=743, Alakazam_TWM=245
