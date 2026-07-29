@@ -863,19 +863,32 @@ def handle_main(obs, options, min_count, max_count):
                                     op_bench_list = [p for p in op_state.bench if p]
                                     current_dmg = 20 + 20 * (len(my_bench) + len(op_bench_list))
                                 
-                            best_target = max(op_bench, 
-                                key=lambda p: _target_score(p, my_prizes, current_dmg))
-                            best_score = _target_score(best_target, my_prizes, current_dmg)
-                            active_score = _target_score(op_active, my_prizes, current_dmg) if op_active else 0
+                            # v3.48 Rule A/F — respect the blocker gate during target
+                            # selection: when a damage blocker is in play and our active
+                            # is effect-based Alakazam, prize weighting is suppressed and
+                            # the blocker is the only productive drag target.
+                            gate = _blocker_gate_active(op_state, my_active)
+                            best_target = max(op_bench,
+                                key=lambda p: _target_score(p, my_prizes, current_dmg, blocker_gate=gate))
+                            best_score = _target_score(best_target, my_prizes, current_dmg, blocker_gate=gate)
+                            active_score = _target_score(op_active, my_prizes, current_dmg, blocker_gate=gate) if op_active else 0
                             if best_score > active_score + 200:
-                                if is_lethal and my_active and my_active.id in (ALAKAZAM, LILLIE_CLEFAIRY_EX):
+                                # v3.48 Rule B — gate the game-winning drag on a COMPUTABLE
+                                # lethal exception, never is_lethal: fire only when drawing
+                                # converts a non-lethal board into a winning KO on the
+                                # dragged target.
+                                draw_amount = max(0, achievable - hand_size)
+                                enables_win = _search_enables_game_win(
+                                    hand_size, draw_amount, _hp_remaining(best_target),
+                                    my_prizes, best_target)
+                                if enables_win and my_active and my_active.id in (ALAKAZAM, LILLIE_CLEFAIRY_EX):
                                     attack_opt = next((opt for opt in options if opt.type == OptionType.ATTACK), None)
                                     if attack_opt:
                                         current_attack_score = evaluate_attack(
                                             obs, attack_opt.index, op_hp, hand_size, my_prizes, len(op_state.prize), len(op_bench)
                                         )
                                         score = current_attack_score + 500.0
-                                        print(f"[BOSS LETHAL OVERRIDE] attack_score={current_attack_score}, boss_score={score}")
+                                        print(f"[BOSS GAME-WIN OVERRIDE] attack_score={current_attack_score}, boss_score={score}")
                                     else:
                                         score = 7000.0
                                 else:
