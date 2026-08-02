@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import policy
 from policy import (
     _target_score, _munkidori_in_play, _cage_relevant_threat, _blocker_gate_active,
-    handle_to_active, handle_main,
+    _boss_drag_decision, handle_to_active, handle_main,
     COUNTER_MOVING_ABILITY_IDS, COUNTER_MOVER_DRAG_BONUS, CAGE_BLOCKED_THREAT_IDS,
     MUNKIDORI, FROSLASS, DREEPY, DRAKLOAK, DRAGAPULT_EX,
     LILLIE_CLEFAIRY_EX, ALAKAZAM, TEAM_ROCKETS_ARTICUNO, PSYCHIC_ENERGY,
@@ -171,11 +171,43 @@ class Item2_ClefairyPivot(unittest.TestCase):
         self.assertLess(_target_score(PokeMock(65, hp=60), 6, current_damage=200, blocker_gate=True), 0.0)
 
 
+# ── ITEM 3 — Boss's Orders hand-sufficiency check ────────────────────────────
+class Item3_BossHandSufficiency(unittest.TestCase):
+    FROS = FROSLASS          # 90 HP bench threat, the wrongly-dragged target
+    BUDEW = 999              # stand-in for the killable bench basic (Budew) that was left untouched
+    TANK  = 648              # opponent active tank (Grimmsnarl ex, 320) — not killable
+
+    def test_decline_when_target_not_killable_postdraw(self):
+        # Bigoldgaryman: post-draw hand only reaches ~60 dmg; Froslass (90) can't be
+        # KO'd -> the corrected logic must NOT spend Boss dragging it.
+        op_bench = [PokeMock(self.FROS, hp=90)]
+        op_active = PokeMock(self.TANK, hp=320)
+        _, should = _boss_drag_decision(op_bench, op_active, 6, current_dmg=60)
+        self.assertFalse(should, "Must not Boss a target we can't KO with the post-draw hand")
+
+    def test_prefers_killable_alternative_over_froslass(self):
+        # Same board but the killable Budew is on the bench: pick it, not Froslass.
+        op_bench = [PokeMock(self.FROS, hp=90), PokeMock(self.BUDEW, hp=40)]
+        op_active = PokeMock(self.TANK, hp=320)
+        target, should = _boss_drag_decision(op_bench, op_active, 6, current_dmg=60)
+        self.assertTrue(should, "Should Boss the killable bench target")
+        self.assertEqual(target.id, self.BUDEW, "Must drag Budew (killable), not Froslass")
+
+    def test_normal_killable_drag_still_fires(self):
+        # Regression: a clearly killable, higher-value bench target still gets dragged.
+        op_bench = [PokeMock(DRAGAPULT_EX, hp=120)]   # 2-prize, killable at 200
+        op_active = PokeMock(65, hp=60)
+        target, should = _boss_drag_decision(op_bench, op_active, 6, current_dmg=200)
+        self.assertTrue(should)
+        self.assertEqual(target.id, DRAGAPULT_EX)
+
+
 def _run():
     groups = {
         "Item1a_MunkidoriDragPriority": "Item 1a — Munkidori Boss's Orders drag priority",
         "Item1b_CageTrigger": "Item 1b — Battle Cage trigger generalization",
         "Item2_ClefairyPivot": "Item 2 — Clefairy pivot-when-walled",
+        "Item3_BossHandSufficiency": "Item 3 — Boss's Orders hand-sufficiency check",
     }
     loader = unittest.TestLoader(); ok_all = True
     print("=" * 70); print("  v3.49 verification"); print("=" * 70)

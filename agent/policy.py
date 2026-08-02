@@ -415,6 +415,28 @@ def _blocker_gate_active(op_state, my_active):
         return False
     return has_damage_blocker_revealed(op_state)
 
+
+def _boss_drag_decision(op_bench, op_active, my_prizes, current_dmg, blocker_gate=False):
+    """
+    v3.49 Item 3 — choose the Boss's Orders drag target under a hand-sufficiency
+    check. `current_dmg` must be the POST-DRAW damage (the draw engine runs before
+    the attack), so we evaluate against the hand we will actually have. Only drag a
+    target we can actually KO; otherwise decline (leave the current active alone)
+    rather than spend Boss's Orders for no prize.
+
+    Returns (best_target, should_boss). Target selection still flows through
+    _target_score, so v3.48 Rules A (blocker gate) / C / E / F all apply here.
+    """
+    if not op_bench:
+        return (None, False)
+    best_target = max(
+        op_bench, key=lambda p: _target_score(p, my_prizes, current_dmg, blocker_gate=blocker_gate))
+    best_score = _target_score(best_target, my_prizes, current_dmg, blocker_gate=blocker_gate)
+    active_score = _target_score(op_active, my_prizes, current_dmg, blocker_gate=blocker_gate) if op_active else 0
+    best_killable = current_dmg > 0 and _hp_remaining(best_target) <= current_dmg
+    should_boss = best_killable and best_score > active_score + 200
+    return (best_target, should_boss)
+
 def has_damage_blocker_revealed(op_state):
     op_cards = op_state.active + op_state.bench
     for p in op_cards:
@@ -897,27 +919,28 @@ def handle_main(obs, options, min_count, max_count):
 
                     elif cid == BOSS_ORDERS:
                         if not supporter_played and op_bench:
-                            # Calculate our active's damage
-                            current_dmg = 0
                             my_active = next((p for p in my_state.active if p), None)
+                            # v3.49 Item 3 — evaluate the drag against the POST-DRAW hand
+                            # (the draw engine runs before the attack), not the current hand,
+                            # so we never spend Boss on a target we can't actually KO. Full
+                            # Moon Rondo scales with bench, not the draw, so Clefairy keeps
+                            # its board-based figure.
+                            current_dmg = 0
                             if my_active:
                                 if my_active.id == ALAKAZAM:
-                                    current_dmg = len(my_state.hand) * 20
+                                    current_dmg = _powerful_hand_damage(achievable)
                                 elif my_active.id == LILLIE_CLEFAIRY_EX:
                                     my_bench = [p for p in my_state.bench if p]
                                     op_bench_list = [p for p in op_state.bench if p]
                                     current_dmg = 20 + 20 * (len(my_bench) + len(op_bench_list))
-                                
-                            # v3.48 Rule A/F — respect the blocker gate during target
-                            # selection: when a damage blocker is in play and our active
-                            # is effect-based Alakazam, prize weighting is suppressed and
-                            # the blocker is the only productive drag target.
+
+                            # v3.48 Rule A/F preserved inside the helper (target selection
+                            # still flows through _target_score with the blocker gate).
+                            # v3.49 Item 3: helper also enforces the hand-sufficiency gate.
                             gate = _blocker_gate_active(op_state, my_active)
-                            best_target = max(op_bench,
-                                key=lambda p: _target_score(p, my_prizes, current_dmg, blocker_gate=gate))
-                            best_score = _target_score(best_target, my_prizes, current_dmg, blocker_gate=gate)
-                            active_score = _target_score(op_active, my_prizes, current_dmg, blocker_gate=gate) if op_active else 0
-                            if best_score > active_score + 200:
+                            best_target, should_boss = _boss_drag_decision(
+                                op_bench, op_active, my_prizes, current_dmg, blocker_gate=gate)
+                            if should_boss:
                                 # v3.48 Rule B — gate the game-winning drag on a COMPUTABLE
                                 # lethal exception, never is_lethal: fire only when drawing
                                 # converts a non-lethal board into a winning KO on the
