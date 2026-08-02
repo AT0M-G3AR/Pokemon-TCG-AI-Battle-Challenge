@@ -7,11 +7,15 @@ Each group prints a labelled PASS/FAIL so results can be reported individually.
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import unittest
+from unittest.mock import MagicMock, patch
 import policy
 from policy import (
-    _target_score, _munkidori_in_play, _cage_relevant_threat,
+    _target_score, _munkidori_in_play, _cage_relevant_threat, _blocker_gate_active,
+    handle_to_active, handle_main,
     COUNTER_MOVING_ABILITY_IDS, COUNTER_MOVER_DRAG_BONUS, CAGE_BLOCKED_THREAT_IDS,
     MUNKIDORI, FROSLASS, DREEPY, DRAKLOAK, DRAGAPULT_EX,
+    LILLIE_CLEFAIRY_EX, ALAKAZAM, TEAM_ROCKETS_ARTICUNO, PSYCHIC_ENERGY,
+    OptionType, AreaType,
 )
 
 # Real IDs used as forced-state targets
@@ -21,14 +25,46 @@ PLAIN   = 65         # Dunsparce -> 1 prize
 
 
 class PokeMock:
-    def __init__(self, id, hp=120, damage=0, energies=None):
+    def __init__(self, id, hp=120, damage=0, energies=None, energyCards=None):
         self.id = id; self.hp = hp; self.damage = damage
         self.energies = energies or []
+        self.energyCards = energyCards or []
 
 class OpStateMock:
     def __init__(self, active=None, bench=None):
         self.active = active or [None]
         self.bench = bench or [None] * 5
+
+class OptMock:
+    def __init__(self, type, index=0, inPlayArea=None, inPlayIndex=0):
+        self.type = type; self.index = index
+        self.inPlayArea = inPlayArea; self.inPlayIndex = inPlayIndex
+
+
+def _make_main_obs(my_active, my_bench, my_hand, op_active, op_bench):
+    """MagicMock obs for handle_main, mirroring verify_energy_blocks' proven setup."""
+    obs = MagicMock()
+    obs.current.yourIndex = 0
+    my = MagicMock(); op = MagicMock()
+    obs.current.players = [my, op]
+    obs.current.supporterPlayed = False
+    obs.current.energyAttached = False
+    obs.current.stadium = []
+    my.deckCount = 40; my.prize = [1, 2, 3, 4, 5, 6]
+    my.hand = my_hand; my.bench = my_bench + [None] * (5 - len(my_bench))
+    my.active = [my_active]; my.discard = []
+    my.asleep = my.paralyzed = my.confused = my.poisoned = my.burned = False
+    op.prize = [1, 2, 3, 4, 5, 6]
+    op.active = [op_active]; op.bench = op_bench + [None] * (5 - len(op_bench)); op.discard = []
+    return obs
+
+
+def _capture_scores(obs, options):
+    out = {}
+    with patch.object(policy, '_sanity_check', side_effect=lambda o, ops, sc: out.__setitem__('s', list(sc))):
+        with patch.object(policy, '_pick_best', return_value=[0]):
+            handle_main(obs, options, 1, 1)
+    return out.get('s', [])
 
 
 # ── ITEM 1a — Munkidori Boss's Orders drag priority ──────────────────────────
@@ -93,10 +129,53 @@ class Item1b_CageTrigger(unittest.TestCase):
         self.assertFalse(_cage_relevant_threat(op), "No bench-counter threat -> no Cage boost")
 
 
+# ── ITEM 2 — Clefairy pivot-when-walled ──────────────────────────────────────
+class Item2_ClefairyPivot(unittest.TestCase):
+    def test_clefairy_attack_prioritized_when_walled(self):
+        # Clefairy active, opponent has Repelling Veil blocker -> Full Moon Rondo
+        # scores high (bypass), vs a control with no blocker.
+        clef = PokeMock(LILLIE_CLEFAIRY_EX, hp=200, energies=[PSYCHIC_ENERGY])
+        atk = OptMock(OptionType.ATTACK)
+        walled = _make_main_obs(clef, [], [], PokeMock(TEAM_ROCKETS_ARTICUNO, hp=120), [])
+        clear  = _make_main_obs(PokeMock(LILLIE_CLEFAIRY_EX, hp=200, energies=[PSYCHIC_ENERGY]),
+                                [], [], PokeMock(65, hp=100), [])
+        s_walled = _capture_scores(walled, [atk])[0]
+        s_clear  = _capture_scores(clear, [OptMock(OptionType.ATTACK)])[0]
+        self.assertGreaterEqual(s_walled, 12000.0, "Walled Clefairy attack must be high-priority")
+        self.assertGreater(s_walled, s_clear, "Blocker present should raise the Clefairy attack score")
+
+    def test_energy_to_clefairy_prioritized_when_walled(self):
+        clef = PokeMock(LILLIE_CLEFAIRY_EX, hp=200, energyCards=[])
+        energy = PokeMock(PSYCHIC_ENERGY, hp=0)
+        obs = _make_main_obs(clef, [], [energy], PokeMock(TEAM_ROCKETS_ARTICUNO, hp=120), [])
+        opt = OptMock(OptionType.ATTACH, index=0, inPlayArea=AreaType.ACTIVE, inPlayIndex=0)
+        s = _capture_scores(obs, [opt])[0]
+        self.assertGreaterEqual(s, 8000.0, "Energy should be routed to Clefairy when walled")
+
+    def test_pivot_clefairy_up_when_walled(self):
+        # handle_to_active: bench has Clefairy + Alakazam, opp has a blocker.
+        obs = MagicMock(); obs.current.yourIndex = 0
+        my = MagicMock(); op = MagicMock(); obs.current.players = [my, op]
+        my.bench = [PokeMock(LILLIE_CLEFAIRY_EX, hp=200, energies=[PSYCHIC_ENERGY]),
+                    PokeMock(ALAKAZAM, hp=140, energies=[PSYCHIC_ENERGY]), None, None, None]
+        op.active = [PokeMock(TEAM_ROCKETS_ARTICUNO, hp=120)]; op.bench = [None] * 5
+        opts = [OptMock(OptionType.YES, index=0), OptMock(OptionType.YES, index=1)]
+        result = handle_to_active(obs, opts, 1, 1)
+        self.assertIn(0, result, "Walled: Clefairy (index 0) should be sent up over Alakazam")
+
+    def test_rule_A_still_suppresses(self):
+        # Regression: v3.48 Rule A untouched — gate active for Alakazam+blocker,
+        # and a non-blocker is still suppressed under blocker_gate.
+        op = OpStateMock(active=[PokeMock(TEAM_ROCKETS_ARTICUNO, hp=120)])
+        self.assertTrue(_blocker_gate_active(op, PokeMock(ALAKAZAM, hp=140)))
+        self.assertLess(_target_score(PokeMock(65, hp=60), 6, current_damage=200, blocker_gate=True), 0.0)
+
+
 def _run():
     groups = {
         "Item1a_MunkidoriDragPriority": "Item 1a — Munkidori Boss's Orders drag priority",
         "Item1b_CageTrigger": "Item 1b — Battle Cage trigger generalization",
+        "Item2_ClefairyPivot": "Item 2 — Clefairy pivot-when-walled",
     }
     loader = unittest.TestLoader(); ok_all = True
     print("=" * 70); print("  v3.49 verification"); print("=" * 70)

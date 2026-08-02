@@ -582,7 +582,17 @@ def handle_main(obs, options, min_count, max_count):
 
         # ── ATTACK ──────────────────────────────────────────────────────────
         if o.type == OptionType.ATTACK:
-            if post_disruption and hand_size < 8 and not is_lethal:
+            if active and active.id == LILLIE_CLEFAIRY_EX:
+                # v3.49 Item 2b — Full Moon Rondo is DIRECT damage, so it bypasses
+                # Repelling Veil / Mist where Powerful Hand is walled. Hand size is
+                # irrelevant to it, so it sits ahead of the Powerful-Hand hand-build
+                # gate below. When a blocker is up, this is the productive attack —
+                # stop throwing Powerful Hand at the wall.
+                if has_damage_blocker_revealed(op_state):
+                    score = 12000.0
+                else:
+                    score = 3000.0
+            elif post_disruption and hand_size < 8 and not is_lethal:
                 score = 2000.0  # Build hand first
             elif active and active.id == ALAKAZAM:
                 hand_size = len(my_state.hand)
@@ -1146,6 +1156,8 @@ def handle_main(obs, options, min_count, max_count):
                                     score = 8000.0  # Pre-load backup attacker
                                 elif target.id == ABRA:
                                     score = 3000.0
+                                elif target.id == LILLIE_CLEFAIRY_EX and has_damage_blocker_revealed(op_state):
+                                    score = 8000.0  # v3.49 Item 2a — power Clefairy to bypass the wall
                                 else:
                                     score = 500.0
                 else:
@@ -1603,7 +1615,12 @@ def handle_to_active(obs, options, min_count, max_count):
             else:
                 score = 300.0
         else:
-            if poke.id == ALAKAZAM:
+            if poke.id == LILLIE_CLEFAIRY_EX and has_damage_blocker_revealed(op_state):
+                # v3.49 Item 2b — when Powerful Hand is walled, Clefairy is our only
+                # productive attacker (Full Moon Rondo bypasses the blocker); send her
+                # up ahead of Alakazam, who cannot get through the wall.
+                score = 12000.0 + energy * 300
+            elif poke.id == ALAKAZAM:
                 score = 10000.0 + energy * 500  # Always prefer Alakazam
             elif poke.id == ALAKAZAM_TWM:
                 score = 8000.0 + energy * 300
