@@ -99,6 +99,21 @@ MUNKIDORI     = 112   # 110 HP; Adrena-Brain moves counters off tank onto our be
 # Set to 200 — covers Dragapult ex (320) and Munkidori ex (210) but not Drakloak (90) or generics.
 HIGH_HP_CHIP_THRESHOLD = 200
 
+# v3.49 Item 1a — counter-moving abilities (relocate damage counters; mechanically
+# distinct from DAMAGE_BLOCKING_ABILITY_IDS, which is pure damage-negation). Single
+# source of truth; MUNKIDORI is kept as a readable alias for the sole current member.
+# Excludes Munkidori ex (139) — its "Oh No You Don't" is prize-denial, not a mover.
+COUNTER_MOVING_ABILITY_IDS = {MUNKIDORI}   # 112 Adrena-Brain
+# Boss's Orders priority for dragging out a killable counter-mover. Its own signal,
+# added on top of (not replacing) the v3.48 prize-value weighting.
+COUNTER_MOVER_DRAG_BONUS = 7000.0
+
+FROSLASS = 104   # Freezing Shroud — passive bench damage-counter spread (Pokémon Checkup)
+# v3.49 Item 1b — threats Battle Cage neutralises (bench damage-counter effects).
+# Verified via DB ability text: Froslass Freezing Shroud + Munkidori Adrena-Brain,
+# plus the Dragapult line's Phantom Dive spread (preserves the v3.45 Cage trigger).
+CAGE_BLOCKED_THREAT_IDS = {DREEPY, DRAKLOAK, DRAGAPULT_EX, MUNKIDORI, FROSLASS}
+
 PSYCHIC_ENERGY  = 5
 TELEPATH_ENERGY = 19
 ENRICHING_ENERGY= 13
@@ -367,6 +382,13 @@ def _target_score(pokemon, my_prizes_left, current_damage=0, blocker_gate=False)
         # Drakloak is a 320 HP / 2-prize Dragapult that never happens.
         if pokemon.id == DRAKLOAK:
             score += 3000.0
+        # v3.49 Item 1a — drag out and KO the opponent's counter-mover (Munkidori):
+        # a high-priority Boss's Orders target when killable, since it relocates our
+        # counters off their tanks faster than we can finish them. Separate signal,
+        # additive to prize-value; gated on killable so we never waste a drag on a
+        # target we can't actually KO once it's active.
+        if pokemon.id in COUNTER_MOVING_ABILITY_IDS:
+            score += COUNTER_MOVER_DRAG_BONUS
         # Game-winning KO: taking this target's prizes empties our prize count.
         if prizes >= my_prizes_left:
             score += 50000.0
@@ -400,18 +422,21 @@ def has_damage_blocker_revealed(op_state):
             return True
     return False
 
-def _in_dragapult_matchup(op_state):
-    """v3.45: True if opponent has any Dragapult-line Pokémon revealed."""
-    dragapult_line = {DREEPY, DRAKLOAK, DRAGAPULT_EX, MUNKIDORI}
+def _cage_relevant_threat(op_state):
+    """v3.49 Item 1b: True if the opponent has a threat Battle Cage neutralises —
+    Froslass's Freezing Shroud, Munkidori's Adrena-Brain, or the Dragapult line's
+    Phantom Dive spread. Generalises the former Dragapult-only Cage trigger
+    (which missed Froslass entirely) via a single DB-verified ID set."""
     for p in (op_state.active + op_state.bench):
-        if p and p.id in dragapult_line:
+        if p and p.id in CAGE_BLOCKED_THREAT_IDS:
             return True
     return False
 
 def _munkidori_in_play(op_state):
-    """v3.45: True if opponent's Munkidori is visible (active or bench)."""
+    """v3.45/v3.49: True if a counter-mover (Munkidori's Adrena-Brain) is visible.
+    Routes through COUNTER_MOVING_ABILITY_IDS so there is a single source of truth."""
     for p in (op_state.active + op_state.bench):
-        if p and p.id == MUNKIDORI:
+        if p and p.id in COUNTER_MOVING_ABILITY_IDS:
             return True
     return False
 
@@ -1012,8 +1037,8 @@ def handle_main(obs, options, min_count, max_count):
                                 current_stadium_card is not None
                                 and current_stadium_card.id != BATTLE_CAGE
                             )
-                            in_dragapult = _in_dragapult_matchup(op_state)
-                            if in_dragapult or op_has_stadium:
+                            cage_threat = _cage_relevant_threat(op_state)  # v3.49 1b: now incl. Froslass Freezing Shroud
+                            if cage_threat or op_has_stadium:
                                 score = 10500.0
                             else:
                                 score = 8500.0
