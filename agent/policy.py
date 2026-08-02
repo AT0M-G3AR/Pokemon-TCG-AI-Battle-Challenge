@@ -1,8 +1,8 @@
 """
-PTCG AI Battle Challenge — v3.49 Alakazam + Dudunsparce Policy
+PTCG AI Battle Challenge — v3.50 Alakazam + Dudunsparce Policy
 AT0M-G3AR | Gary & Team | 2026
 
-DECK (v3.49): Alakazam (Powerful Hand) + Dudunsparce (Run Away Draw)
+DECK (v3.50): Alakazam (Powerful Hand) + Dudunsparce (Run Away Draw)
 WIN CONDITION: Powerful Hand — 2 damage counters per card in hand (uncapped)
 
 THREE CORE RULES:
@@ -32,6 +32,13 @@ v3.49 — TARGETING INTELLIGENCE (right tool, now with logic to reach for it):
   3.  Boss's Orders hand-sufficiency (_boss_drag_decision): evaluate the drag against
       the POST-DRAW hand and only drag a target we can actually KO; else leave the
       current active alone rather than waste the card.
+
+v3.50 — CLEFAIRY GATE EXTENDED TO MIST (verification finding from v3.49 live logs):
+  The v3.49 Item 2 gate used has_damage_blocker_revealed, which detects ABILITY
+  blockers only and missed Mist Energy — so the Clefairy pivot never fired in Mist
+  matchups (0 pivots across 5 live Mist games). New _powerful_hand_walled(state,
+  op_idx) = ability blocker OR opponent-active Mist; swapped into the 3 Item-2 gates
+  (attack / pivot / energy). Rule A (v3.48) deliberately left ability-blocker-only.
 
 KEY CARD IDS:
   Pokémon:  Abra=741, Kadabra=742, Alakazam=743, Alakazam_TWM=245
@@ -457,6 +464,22 @@ def has_damage_blocker_revealed(op_state):
             return True
     return False
 
+
+def _powerful_hand_walled(state, op_idx):
+    """
+    v3.50 — True when Powerful Hand's damage-counter EFFECT is nullified on the
+    opponent's relevant Pokémon: either an ability blocker (Repelling Veil, etc.)
+    is in play, OR the opponent's active carries Mist Energy. Both wall Powerful
+    Hand but NOT Clefairy's Full Moon Rondo (direct damage), so this is the gate
+    for the v3.49 Item 2 Clefairy pivot. Extends the original gate, which checked
+    ability blockers only and missed Mist entirely.
+
+    NOTE: deliberately NOT used by _blocker_gate_active (v3.48 Rule A) — that gate
+    stays ability-blocker-only per the standing constraint.
+    """
+    return has_damage_blocker_revealed(state.players[op_idx]) or \
+        _opponent_has_mist_energy(state, op_idx)
+
 def _cage_relevant_threat(op_state):
     """v3.49 Item 1b: True if the opponent has a threat Battle Cage neutralises —
     Froslass's Freezing Shroud, Munkidori's Adrena-Brain, or the Dragapult line's
@@ -618,12 +641,12 @@ def handle_main(obs, options, min_count, max_count):
         # ── ATTACK ──────────────────────────────────────────────────────────
         if o.type == OptionType.ATTACK:
             if active and active.id == LILLIE_CLEFAIRY_EX:
-                # v3.49 Item 2b — Full Moon Rondo is DIRECT damage, so it bypasses
-                # Repelling Veil / Mist where Powerful Hand is walled. Hand size is
-                # irrelevant to it, so it sits ahead of the Powerful-Hand hand-build
-                # gate below. When a blocker is up, this is the productive attack —
-                # stop throwing Powerful Hand at the wall.
-                if has_damage_blocker_revealed(op_state):
+                # v3.49 Item 2b / v3.50 — Full Moon Rondo is DIRECT damage, so it
+                # bypasses Repelling Veil AND Mist Energy where Powerful Hand is
+                # walled. Hand size is irrelevant to it, so it sits ahead of the
+                # Powerful-Hand hand-build gate below. When the wall is up, this is
+                # the productive attack — stop throwing Powerful Hand at it.
+                if _powerful_hand_walled(state, op_idx):
                     score = 12000.0
                 else:
                     score = 3000.0
@@ -1192,8 +1215,8 @@ def handle_main(obs, options, min_count, max_count):
                                     score = 8000.0  # Pre-load backup attacker
                                 elif target.id == ABRA:
                                     score = 3000.0
-                                elif target.id == LILLIE_CLEFAIRY_EX and has_damage_blocker_revealed(op_state):
-                                    score = 8000.0  # v3.49 Item 2a — power Clefairy to bypass the wall
+                                elif target.id == LILLIE_CLEFAIRY_EX and _powerful_hand_walled(state, op_idx):
+                                    score = 8000.0  # v3.49 Item 2a / v3.50 — power Clefairy to bypass the wall (blocker or Mist)
                                 else:
                                     score = 500.0
                 else:
@@ -1651,10 +1674,10 @@ def handle_to_active(obs, options, min_count, max_count):
             else:
                 score = 300.0
         else:
-            if poke.id == LILLIE_CLEFAIRY_EX and has_damage_blocker_revealed(op_state):
-                # v3.49 Item 2b — when Powerful Hand is walled, Clefairy is our only
-                # productive attacker (Full Moon Rondo bypasses the blocker); send her
-                # up ahead of Alakazam, who cannot get through the wall.
+            if poke.id == LILLIE_CLEFAIRY_EX and _powerful_hand_walled(state, op_idx):
+                # v3.49 Item 2b / v3.50 — when Powerful Hand is walled (blocker OR
+                # Mist), Clefairy is our only productive attacker (Full Moon Rondo
+                # bypasses both); send her up ahead of Alakazam, who can't get through.
                 score = 12000.0 + energy * 300
             elif poke.id == ALAKAZAM:
                 score = 10000.0 + energy * 500  # Always prefer Alakazam
