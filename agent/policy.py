@@ -1,8 +1,8 @@
 """
-PTCG AI Battle Challenge — v3.48 Alakazam + Dudunsparce Policy
+PTCG AI Battle Challenge — v3.49 Alakazam + Dudunsparce Policy
 AT0M-G3AR | Gary & Team | 2026
 
-DECK (v3.48): Alakazam (Powerful Hand) + Dudunsparce (Run Away Draw)
+DECK (v3.49): Alakazam (Powerful Hand) + Dudunsparce (Run Away Draw)
 WIN CONDITION: Powerful Hand — 2 damage counters per card in hand (uncapped)
 
 THREE CORE RULES:
@@ -19,6 +19,19 @@ v3.48 — PRIZE-VALUE WEIGHTING + BOSS'S ORDERS BYPASS (target selection):
   C/E. Among killable targets prefer higher prize value (Mega ex 3 > ex 2 >
      plain 1); the prize term ADDS to the +5000 blocker bonus and HP tiebreak.
   D. Prize value from Card schema booleans (.megaEx / .ex), never name matching.
+
+v3.49 — TARGETING INTELLIGENCE (right tool, now with logic to reach for it):
+  1a. COUNTER_MOVING_ABILITY_IDS ({Munkidori 112}) — Boss's Orders drags out a
+      KILLABLE counter-mover (COUNTER_MOVER_DRAG_BONUS), its own signal on top of
+      the v3.48 prize-value weighting. Excludes Munkidori ex (139).
+  1b. CAGE_BLOCKED_THREAT_IDS + _cage_relevant_threat generalizes the Battle Cage
+      trigger to Froslass Freezing Shroud (was missed) alongside Munkidori/Dragapult.
+  2.  Clefairy pivot-when-walled: when has_damage_blocker_revealed, prioritise energy
+      on and attacking with Lillie's Clefairy ex (Full Moon Rondo bypasses the wall).
+      Composes with Rule A (does not touch it).
+  3.  Boss's Orders hand-sufficiency (_boss_drag_decision): evaluate the drag against
+      the POST-DRAW hand and only drag a target we can actually KO; else leave the
+      current active alone rather than waste the card.
 
 KEY CARD IDS:
   Pokémon:  Abra=741, Kadabra=742, Alakazam=743, Alakazam_TWM=245
