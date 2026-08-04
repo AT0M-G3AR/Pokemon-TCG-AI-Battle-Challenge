@@ -1,8 +1,8 @@
 """
-PTCG AI Battle Challenge — v3.50 Alakazam + Dudunsparce Policy
+PTCG AI Battle Challenge — v3.51 Alakazam + Dudunsparce Policy
 AT0M-G3AR | Gary & Team | 2026
 
-DECK (v3.50): Alakazam (Powerful Hand) + Dudunsparce (Run Away Draw)
+DECK (v3.51): Alakazam (Powerful Hand) + Dudunsparce (Run Away Draw)
 WIN CONDITION: Powerful Hand — 2 damage counters per card in hand (uncapped)
 
 THREE CORE RULES:
@@ -39,6 +39,16 @@ v3.50 — CLEFAIRY GATE EXTENDED TO MIST (verification finding from v3.49 live l
   matchups (0 pivots across 5 live Mist games). New _powerful_hand_walled(state,
   op_idx) = ability blocker OR opponent-active Mist; swapped into the 3 Item-2 gates
   (attack / pivot / energy). Rule A (v3.48) deliberately left ability-blocker-only.
+
+v3.51 — PERSISTENT CLEFAIRY-ENERGIZE COMMITMENT (live-trace finding, eps 89665922/…):
+  Reactive Mist gating still failed to power Clefairy — Mist sits on the opp active
+  only ~1-2 steps/turn, and the old ATTACH scored a 1-energy Clefairy just 100 (never
+  attaching her 2nd). _update_clefairy_commitment latches a wall-streak flag once
+  Alakazam is walled (blocker OR Mist) for >= WALL_COMMIT_THRESHOLD (2) consecutive
+  OUR-turns, HELD through Mist flicker until a benched Clefairy hits 2 energy; resets
+  per game. ATTACH then ramps Clefairy 0->2 and handle_to_active pivots her up.
+  (v3.51 Items 2 [Cage play/replay] and 3 [retaliation-KO] needed no code — both were
+  already-correct existing behavior, confirmed by live verification.)
 
 KEY CARD IDS:
   Pokémon:  Abra=741, Kadabra=742, Alakazam=743, Alakazam_TWM=245
