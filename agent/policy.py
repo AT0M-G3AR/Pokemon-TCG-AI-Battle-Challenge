@@ -480,6 +480,61 @@ def _powerful_hand_walled(state, op_idx):
     return has_damage_blocker_revealed(state.players[op_idx]) or \
         _opponent_has_mist_energy(state, op_idx)
 
+
+# ── v3.51 Item 1 — persistent Clefairy-energize commitment ───────────────────
+# Confirmed root cause (eps 89665922/89623192): when Alakazam is walled (blocker OR
+# Mist) for a sustained multi-turn stretch, energy never routes to a benched Clefairy
+# even when she's already benched and energy is available — a single-step reactive
+# check keeps missing the window because Mist is only actually on the opp active for
+# ~1-2 steps per turn. We latch a commitment once the wall persists, and hold it
+# (through Mist flicker) until Clefairy has the 2 energy Full Moon Rondo needs.
+WALL_COMMIT_THRESHOLD = 2   # consecutive OUR-turns Alakazam walled before committing
+_clef_commit = {"last_turn": None, "streak": 0, "committed": False}
+
+
+def _clef_energy(pokemon):
+    return len(getattr(pokemon, 'energyCards', []) or [])
+
+
+def _benched_clefairy_energy(state, my_idx):
+    """Max energy on a BENCHED Lillie's Clefairy ex (0 if none benched)."""
+    best = 0
+    for p in state.players[my_idx].bench:
+        if p and p.id == LILLIE_CLEFAIRY_EX:
+            best = max(best, _clef_energy(p))
+    return best
+
+
+def _update_clefairy_commitment(state, my_idx, op_idx):
+    """Evaluate/advance the persistent wall-commitment once per OUR turn. Resets on a
+    new game (turn goes backwards); clears once a benched Clefairy reaches 2 energy."""
+    g = _clef_commit
+    turn = getattr(state, 'turn', None)
+    # Defensive: this is an optimization, never worth crashing handle_main over (a
+    # crash there degrades to a random fallback move). Guard on a real int turn and
+    # swallow any malformed-state error.
+    if not isinstance(turn, int):
+        return g["committed"]
+    try:
+        prev = g["last_turn"]
+        if prev is None or turn < prev:                    # new game
+            g["streak"], g["committed"] = 0, False
+        if turn != prev:                                   # first look at a new turn
+            my_active = state.players[my_idx].active
+            ala = bool(my_active) and my_active[0] is not None and my_active[0].id == ALAKAZAM
+            if ala and _powerful_hand_walled(state, op_idx):
+                g["streak"] += 1
+            elif not g["committed"]:
+                g["streak"] = 0                            # short/incidental exposure — don't commit
+            if g["streak"] >= WALL_COMMIT_THRESHOLD:
+                g["committed"] = True
+            g["last_turn"] = turn
+        if g["committed"] and _benched_clefairy_energy(state, my_idx) >= 2:
+            g["streak"], g["committed"] = 0, False          # she's powered — job done
+    except Exception:
+        return g["committed"]
+    return g["committed"]
+
 def _cage_relevant_threat(op_state):
     """v3.49 Item 1b: True if the opponent has a threat Battle Cage neutralises —
     Froslass's Freezing Shroud, Munkidori's Adrena-Brain, or the Dragapult line's
@@ -562,6 +617,9 @@ def handle_main(obs, options, min_count, max_count):
     my_state = state.players[my_idx]
     op_state = state.players[op_idx]
     my_prizes = len(my_state.prize)
+
+    # v3.51 Item 1 — advance the persistent Clefairy-energize commitment (once/turn).
+    _clef_committed = _update_clefairy_commitment(state, my_idx, op_idx)
 
     hand    = _hand_counts(state, my_idx)
     field   = _field_counts(state, my_idx)
@@ -1191,6 +1249,18 @@ def handle_main(obs, options, min_count, max_count):
                     else:
                         if target.id == SHAYMIN:
                             score = -9999.0  # NEVER attach non-Enriching to Shaymin
+                        elif (target.id == LILLIE_CLEFAIRY_EX
+                              and _clef_energy(target) < 2
+                              and (_powerful_hand_walled(state, op_idx) or _clef_committed)):
+                            # v3.51 Item 1 — ramp Clefairy to the 2 energy Full Moon Rondo
+                            # needs when Powerful Hand is walled OR we've committed after a
+                            # sustained wall. Fires across BOTH 0- and 1-energy states (the
+                            # old code stopped at 1 energy, so she never got attack-ready).
+                            score = 11000.0 if _clef_committed else 8000.0
+                            if _clef_committed:
+                                print(f"[V351 CLEFAIRY-COMMIT] energize Clefairy "
+                                      f"e{_clef_energy(target)}->{_clef_energy(target)+1} "
+                                      f"streak={_clef_commit['streak']}", flush=True)
                         else:
                             energy_count = sum(1 for e in getattr(target, 'energyCards', []))
                             if energy_count >= 1:
@@ -1674,10 +1744,13 @@ def handle_to_active(obs, options, min_count, max_count):
             else:
                 score = 300.0
         else:
-            if poke.id == LILLIE_CLEFAIRY_EX and _powerful_hand_walled(state, op_idx):
-                # v3.49 Item 2b / v3.50 — when Powerful Hand is walled (blocker OR
-                # Mist), Clefairy is our only productive attacker (Full Moon Rondo
-                # bypasses both); send her up ahead of Alakazam, who can't get through.
+            if (poke.id == LILLIE_CLEFAIRY_EX
+                    and (_powerful_hand_walled(state, op_idx) or _clef_commit["committed"])):
+                # v3.49 Item 2b / v3.50 / v3.51 — when Powerful Hand is walled (blocker
+                # OR Mist), or we've committed after a sustained wall, Clefairy is our
+                # only productive attacker (Full Moon Rondo bypasses both); send her up
+                # ahead of Alakazam, who can't get through. Reading the commit flag keeps
+                # this firing even on turns Mist has momentarily flickered off the active.
                 score = 12000.0 + energy * 300
             elif poke.id == ALAKAZAM:
                 score = 10000.0 + energy * 500  # Always prefer Alakazam
