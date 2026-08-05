@@ -37,7 +37,7 @@ def clef(e=0): return Pk(LILLIE_CLEFAIRY_EX, energyCards=[Pk(MIST_ENERGY)] * e)
 
 class Item1_CommitLogic(unittest.TestCase):
     def setUp(self):
-        _clef_commit.update(last_turn=None, streak=0, committed=False)
+        _clef_commit.update(last_turn=None, window=[], committed=False)
 
     def test_two_walled_turns_commit(self):
         self.assertFalse(_update_clefairy_commitment(St(10, ala(), blocker()), 0, 1))  # streak 1
@@ -45,12 +45,11 @@ class Item1_CommitLogic(unittest.TestCase):
 
     def test_one_walled_turn_does_not_commit(self):
         self.assertFalse(_update_clefairy_commitment(St(10, ala(), blocker()), 0, 1))
-        self.assertEqual(_clef_commit["streak"], 1)
+        self.assertFalse(_clef_commit["committed"])
 
     def test_short_blip_resets(self):
         _update_clefairy_commitment(St(10, ala(), blocker()), 0, 1)   # streak 1
         _update_clefairy_commitment(St(12, ala(), plain()), 0, 1)     # not walled -> reset
-        self.assertEqual(_clef_commit["streak"], 0)
         self.assertFalse(_clef_commit["committed"])
 
     def test_commit_holds_through_mist_flicker(self):
@@ -70,12 +69,13 @@ class Item1_CommitLogic(unittest.TestCase):
         _update_clefairy_commitment(St(12, ala(), blocker()), 0, 1)   # committed
         _update_clefairy_commitment(St(1, ala(), plain()), 0, 1)      # turn went backwards -> new game
         self.assertFalse(_clef_commit["committed"])
-        self.assertEqual(_clef_commit["streak"], 0)
+        # old walled history is gone — only the new game's first (unwalled) turn remains
+        self.assertEqual(_clef_commit["window"], [False])
 
 
 class Item1_EnergizeBehavior(unittest.TestCase):
     def setUp(self):
-        _clef_commit.update(last_turn=None, streak=0, committed=False)
+        _clef_commit.update(last_turn=None, window=[], committed=False)
 
     def _attach_score(self, committed, walled, clef_e):
         # Alakazam active; Clefairy benched with clef_e energy; energy in hand to attach to her.
@@ -85,9 +85,9 @@ class Item1_EnergizeBehavior(unittest.TestCase):
                              op_active, [])
         obs.current.turn = 12
         if committed:
-            _clef_commit.update(last_turn=12, streak=2, committed=True)
+            _clef_commit.update(last_turn=12, window=[True, True], committed=True)
         else:
-            _clef_commit.update(last_turn=12, streak=0, committed=False)
+            _clef_commit.update(last_turn=12, window=[], committed=False)
         opt = OptMock(OptionType.ATTACH, index=0, inPlayArea=AreaType.BENCH, inPlayIndex=0)
         return _capture_scores(obs, [opt])[0]
 

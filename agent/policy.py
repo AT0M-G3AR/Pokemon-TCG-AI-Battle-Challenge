@@ -43,10 +43,12 @@ v3.50 — CLEFAIRY GATE EXTENDED TO MIST (verification finding from v3.49 live l
 v3.51 — PERSISTENT CLEFAIRY-ENERGIZE COMMITMENT (live-trace finding, eps 89665922/…):
   Reactive Mist gating still failed to power Clefairy — Mist sits on the opp active
   only ~1-2 steps/turn, and the old ATTACH scored a 1-energy Clefairy just 100 (never
-  attaching her 2nd). _update_clefairy_commitment latches a wall-streak flag once
-  Alakazam is walled (blocker OR Mist) for >= WALL_COMMIT_THRESHOLD (2) consecutive
-  OUR-turns, HELD through Mist flicker until a benched Clefairy hits 2 energy; resets
-  per game. ATTACH then ramps Clefairy 0->2 and handle_to_active pivots her up.
+  attaching her 2nd). _update_clefairy_commitment latches a wall-commit flag once
+  Alakazam is walled (blocker OR Mist) for >= WALL_COMMIT_THRESHOLD (2) of the last
+  WALL_COMMIT_WINDOW (4) OUR-turns [v3.52 Item 1c: windowed, not strictly consecutive,
+  so Mist flicker doesn't reset it], HELD until a benched Clefairy hits 2 energy; resets
+  per game. ATTACH ramps Clefairy 0->2; her attack + no-retreat persist while committed
+  (v3.52 Items 1a/1b) so a powered Clefairy actually swings and isn't abandoned.
   (v3.51 Items 2 [Cage play/replay] and 3 [retaliation-KO] needed no code — both were
   already-correct existing behavior, confirmed by live verification.)
 
@@ -498,8 +500,12 @@ def _powerful_hand_walled(state, op_idx):
 # check keeps missing the window because Mist is only actually on the opp active for
 # ~1-2 steps per turn. We latch a commitment once the wall persists, and hold it
 # (through Mist flicker) until Clefairy has the 2 energy Full Moon Rondo needs.
-WALL_COMMIT_THRESHOLD = 2   # consecutive OUR-turns Alakazam walled before committing
-_clef_commit = {"last_turn": None, "streak": 0, "committed": False}
+# v3.52 Item 1c — windowed (not strictly-consecutive) trigger: commit once >= THRESHOLD
+# of the last WINDOW of OUR turns were walled, so Mist flickering walled->unwalled->walled
+# (e.g. ep 90047497 turns [4,10]) still latches instead of resetting the streak to 0.
+WALL_COMMIT_WINDOW = 4       # look-back over our last N turns
+WALL_COMMIT_THRESHOLD = 2    # >= this many walled within the window -> commit
+_clef_commit = {"last_turn": None, "window": [], "committed": False}
 
 
 def _clef_energy(pokemon):
@@ -528,19 +534,22 @@ def _update_clefairy_commitment(state, my_idx, op_idx):
     try:
         prev = g["last_turn"]
         if prev is None or turn < prev:                    # new game
-            g["streak"], g["committed"] = 0, False
+            g["window"], g["committed"] = [], False
         if turn != prev:                                   # first look at a new turn
-            my_active = state.players[my_idx].active
-            ala = bool(my_active) and my_active[0] is not None and my_active[0].id == ALAKAZAM
-            if ala and _powerful_hand_walled(state, op_idx):
-                g["streak"] += 1
-            elif not g["committed"]:
-                g["streak"] = 0                            # short/incidental exposure — don't commit
-            if g["streak"] >= WALL_COMMIT_THRESHOLD:
-                g["committed"] = True
+            g["window"].append(False)                      # fresh slot for this turn
+            g["window"] = g["window"][-WALL_COMMIT_WINDOW:]  # keep last N our-turns
             g["last_turn"] = turn
+        # OR the walled reading into THIS turn's slot on EVERY call — Mist sits on the
+        # opp active only ~1-2 steps/turn, so a once-per-turn check misses it (that's the
+        # flicker the whole commitment is meant to survive).
+        my_active = state.players[my_idx].active
+        ala = bool(my_active) and my_active[0] is not None and my_active[0].id == ALAKAZAM
+        if ala and _powerful_hand_walled(state, op_idx) and g["window"]:
+            g["window"][-1] = True
+        if sum(1 for x in g["window"] if x) >= WALL_COMMIT_THRESHOLD:
+            g["committed"] = True                          # latch (held below until powered)
         if g["committed"] and _benched_clefairy_energy(state, my_idx) >= 2:
-            g["streak"], g["committed"] = 0, False          # she's powered — job done
+            g["window"], g["committed"] = [], False        # she's powered — job done
     except Exception:
         return g["committed"]
     return g["committed"]
@@ -709,12 +718,13 @@ def handle_main(obs, options, min_count, max_count):
         # ── ATTACK ──────────────────────────────────────────────────────────
         if o.type == OptionType.ATTACK:
             if active and active.id == LILLIE_CLEFAIRY_EX:
-                # v3.49 Item 2b / v3.50 — Full Moon Rondo is DIRECT damage, so it
-                # bypasses Repelling Veil AND Mist Energy where Powerful Hand is
-                # walled. Hand size is irrelevant to it, so it sits ahead of the
-                # Powerful-Hand hand-build gate below. When the wall is up, this is
-                # the productive attack — stop throwing Powerful Hand at it.
-                if _powerful_hand_walled(state, op_idx):
+                # v3.49 2b / v3.50 / v3.52 Item 1a — Full Moon Rondo is DIRECT damage,
+                # so it bypasses Repelling Veil AND Mist where Powerful Hand is walled.
+                # Persist through the commitment: once we've invested in a powered
+                # Clefairy vs a wall deck, keep her swinging even on turns the wall has
+                # momentarily flickered off (ep 90047497: she scored only 3000 unwalled
+                # and lost to setup, so a 2-energy active Clefairy never attacked).
+                if _powerful_hand_walled(state, op_idx) or _clef_committed:
                     score = 12000.0
                 else:
                     score = 3000.0
@@ -1270,7 +1280,8 @@ def handle_main(obs, options, min_count, max_count):
                             if _clef_committed:
                                 print(f"[V351 CLEFAIRY-COMMIT] energize Clefairy "
                                       f"e{_clef_energy(target)}->{_clef_energy(target)+1} "
-                                      f"streak={_clef_commit['streak']}", flush=True)
+                                      f"walled={sum(1 for x in _clef_commit['window'] if x)}"
+                                      f"/{len(_clef_commit['window'])}", flush=True)
                         else:
                             energy_count = sum(1 for e in getattr(target, 'energyCards', []))
                             if energy_count >= 1:
@@ -1313,6 +1324,13 @@ def handle_main(obs, options, min_count, max_count):
             )
 
             if active and active.id in (ALAKAZAM, ALAKAZAM_TWM) and opponent_is_fighting:
+                score = -9999.0
+            elif (active and active.id == LILLIE_CLEFAIRY_EX and _clef_energy(active) >= 2
+                    and (_clef_committed or _powerful_hand_walled(state, op_idx))
+                    and not my_status_curable_by_retreat):
+                # v3.52 Item 1b — never abandon a powered (2-energy), attack-ready Clefairy
+                # off the active spot while committed/walled (ep 90047497 retreated her and
+                # wasted the whole investment). Status cure is still allowed to retreat.
                 score = -9999.0
             elif active and active.id in (DUNSPARCE, DUDUNSPARCE):
                 # v3.32 Fix 1: Dunsparce/Dudunsparce is the designated tank.
