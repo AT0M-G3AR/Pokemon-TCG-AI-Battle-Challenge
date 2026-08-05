@@ -1,8 +1,8 @@
 """
-PTCG AI Battle Challenge — v3.51 Alakazam + Dudunsparce Policy
+PTCG AI Battle Challenge — v3.52 Alakazam + Dudunsparce Policy
 AT0M-G3AR | Gary & Team | 2026
 
-DECK (v3.51): Alakazam (Powerful Hand) + Dudunsparce (Run Away Draw)
+DECK (v3.52): Alakazam (Powerful Hand) + Dudunsparce (Run Away Draw)
 WIN CONDITION: Powerful Hand — 2 damage counters per card in hand (uncapped)
 
 THREE CORE RULES:
