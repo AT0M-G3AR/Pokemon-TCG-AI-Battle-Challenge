@@ -58,11 +58,15 @@ class Item1_CommitLogic(unittest.TestCase):
         # turn 14: wall momentarily False, but commit must HOLD (Clefairy not yet powered)
         self.assertTrue(_update_clefairy_commitment(St(14, ala(), plain(), my_bench=[clef(1)]), 0, 1))
 
-    def test_commit_clears_when_clefairy_powered(self):
+    def test_commit_holds_after_powering_until_attack(self):
+        # v3.53 fix: the latch is NO LONGER released when a benched Clefairy merely
+        # reaches 2 energy — it must hold through the pivot AND the swing (cleared only
+        # once she actually throws Full Moon Rondo, in handle_main). Previously this
+        # returned False here; now it must stay committed.
         _update_clefairy_commitment(St(10, ala(), blocker()), 0, 1)
         _update_clefairy_commitment(St(12, ala(), blocker()), 0, 1)
-        # benched Clefairy now has 2 energy -> commitment done
-        self.assertFalse(_update_clefairy_commitment(St(14, ala(), blocker(), my_bench=[clef(2)]), 0, 1))
+        # benched Clefairy now has 2 energy -> commitment STILL held (not cleared)
+        self.assertTrue(_update_clefairy_commitment(St(14, ala(), blocker(), my_bench=[clef(2)]), 0, 1))
 
     def test_resets_on_new_game(self):
         _update_clefairy_commitment(St(10, ala(), blocker()), 0, 1)

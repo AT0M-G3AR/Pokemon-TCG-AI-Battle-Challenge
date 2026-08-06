@@ -1,8 +1,8 @@
 """
-PTCG AI Battle Challenge — v3.52 Alakazam + Dudunsparce Policy
+PTCG AI Battle Challenge — v3.53 Alakazam + Dudunsparce Policy
 AT0M-G3AR | Gary & Team | 2026
 
-DECK (v3.52): Alakazam (Powerful Hand) + Dudunsparce (Run Away Draw)
+DECK (v3.53): Alakazam (Powerful Hand) + Dudunsparce (Run Away Draw)
 WIN CONDITION: Powerful Hand — 2 damage counters per card in hand (uncapped)
 
 THREE CORE RULES:
@@ -46,11 +46,23 @@ v3.51 — PERSISTENT CLEFAIRY-ENERGIZE COMMITMENT (live-trace finding, eps 89665
   attaching her 2nd). _update_clefairy_commitment latches a wall-commit flag once
   Alakazam is walled (blocker OR Mist) for >= WALL_COMMIT_THRESHOLD (2) of the last
   WALL_COMMIT_WINDOW (4) OUR-turns [v3.52 Item 1c: windowed, not strictly consecutive,
-  so Mist flicker doesn't reset it], HELD until a benched Clefairy hits 2 energy; resets
-  per game. ATTACH ramps Clefairy 0->2; her attack + no-retreat persist while committed
-  (v3.52 Items 1a/1b) so a powered Clefairy actually swings and isn't abandoned.
+  so Mist flicker doesn't reset it]; resets per game. ATTACH ramps Clefairy 0->2; her
+  attack + no-retreat persist while committed (v3.52 Items 1a/1b) so a powered Clefairy
+  actually swings and isn't abandoned.
   (v3.51 Items 2 [Cage play/replay] and 3 [retaliation-KO] needed no code — both were
   already-correct existing behavior, confirmed by live verification.)
+
+v3.53 — LATCH-UNTIL-ATTACKED (live finding, ep 90286383):
+  Item 1's commit-clear fired the moment a benched Clefairy reached 2 energy ("powered
+  — job done"), releasing committed=False BEFORE she pivoted active and attacked. When a
+  transient wall (esp. Mist) dropped in the gap between powering and pivoting, Item 1a's
+  gate (_powerful_hand_walled OR _clef_committed) then read False and Full Moon Rondo
+  dropped to its 3000 fallback — outscored by routine development, so a powered active
+  Clefairy sat with the attack legally offered every turn (T20-24) and never fired,
+  wasting the whole 3-turn energy investment. Fix: hold the latch through the pivot AND
+  the swing — clear it only once Clefairy has ACTUALLY thrown Full Moon Rondo (released
+  at the end of handle_main when her attack option is the selected move). 1a's gate logic
+  is unchanged; it simply now still has the flag it needs when the wall is transient.
 
 KEY CARD IDS:
   Pokémon:  Abra=741, Kadabra=742, Alakazam=743, Alakazam_TWM=245
@@ -523,7 +535,15 @@ def _benched_clefairy_energy(state, my_idx):
 
 def _update_clefairy_commitment(state, my_idx, op_idx):
     """Evaluate/advance the persistent wall-commitment once per OUR turn. Resets on a
-    new game (turn goes backwards); clears once a benched Clefairy reaches 2 energy."""
+    new game (turn goes backwards). v3.53 Item 1 fix: the latch is NO LONGER cleared
+    when a benched Clefairy merely reaches 2 energy — it is held through the pivot AND
+    the swing and cleared only once Clefairy has ACTUALLY thrown Full Moon Rondo (see
+    the clear at the end of handle_main). Rationale (ep 90286383): a transient wall
+    (esp. Mist) dropping in the gap between powering and pivoting used to strand a
+    powered active Clefairy — commit had already cleared at 2 energy, so Item 1a's
+    gate (_powerful_hand_walled OR _clef_committed) read False and Full Moon Rondo
+    lost priority to routine development and never fired (T20-24 she passed every turn
+    with the attack legally offered)."""
     g = _clef_commit
     turn = getattr(state, 'turn', None)
     # Defensive: this is an optimization, never worth crashing handle_main over (a
@@ -547,9 +567,9 @@ def _update_clefairy_commitment(state, my_idx, op_idx):
         if ala and _powerful_hand_walled(state, op_idx) and g["window"]:
             g["window"][-1] = True
         if sum(1 for x in g["window"] if x) >= WALL_COMMIT_THRESHOLD:
-            g["committed"] = True                          # latch (held below until powered)
-        if g["committed"] and _benched_clefairy_energy(state, my_idx) >= 2:
-            g["window"], g["committed"] = [], False        # she's powered — job done
+            g["committed"] = True                          # latch — held until she ATTACKS
+        # v3.53: no clear here. The latch is released in handle_main only once Clefairy
+        # has actually thrown Full Moon Rondo (pivot + swing), not merely once powered.
     except Exception:
         return g["committed"]
     return g["committed"]
@@ -713,11 +733,13 @@ def handle_main(obs, options, min_count, max_count):
     my_status_curable_by_retreat = my_confused or my_poisoned or my_burned
 
     scores = []
+    _clef_attack_pos = None   # v3.53: option index of Clefairy's Full Moon Rondo, if offered
     for o in options:
 
         # ── ATTACK ──────────────────────────────────────────────────────────
         if o.type == OptionType.ATTACK:
             if active and active.id == LILLIE_CLEFAIRY_EX:
+                _clef_attack_pos = len(scores)   # this option's index (append is at loop end)
                 # v3.49 2b / v3.50 / v3.52 Item 1a — Full Moon Rondo is DIRECT damage,
                 # so it bypasses Repelling Veil AND Mist where Powerful Hand is walled.
                 # Persist through the commitment: once we've invested in a powered
@@ -1382,9 +1404,20 @@ def handle_main(obs, options, min_count, max_count):
 
 
     scores = _sanity_check(obs, options, scores)
-    
 
-    return _pick_best(scores, min_count, max_count)
+    result = _pick_best(scores, min_count, max_count)
+
+    # v3.53 Item 1 fix — release the wall-commitment only once Clefairy has ACTUALLY
+    # thrown Full Moon Rondo (pivot + swing complete), not merely once she's powered.
+    # This holds Item 1a/1b/the pivot through the whole sequence so a transient wall
+    # dropping between powering and pivoting can't strand a powered active Clefairy
+    # (ep 90286383: she sat active e2 with the attack offered T20-24 and never fired
+    # because the latch had already cleared at 2 energy). The latch otherwise resets
+    # naturally on a new game (turn goes backwards) in _update_clefairy_commitment.
+    if _clef_attack_pos is not None and _clef_attack_pos in result:
+        _clef_commit["window"], _clef_commit["committed"] = [], False
+
+    return result
 
 
 
